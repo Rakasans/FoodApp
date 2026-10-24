@@ -27,6 +27,8 @@ object DemoData {
         val group: String? = null, val noQty: Boolean = false,
     )
 
+    fun names(): List<String> = listOf("Szakszuka z papryką", "Pierniki świąteczne", "Zupa krem z dyni")
+
     fun recipes(owner: String, now: Long): List<DemoRecipe> = listOf(
         build(
             owner, now,

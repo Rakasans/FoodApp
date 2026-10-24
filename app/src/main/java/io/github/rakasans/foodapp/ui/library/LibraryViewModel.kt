@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class RecipeCardUi(
     val id: String,
@@ -43,34 +44,60 @@ data class LibraryUiState(
     val tags: List<TagEntity> = emptyList(),
     val items: List<RecipeCardUi> = emptyList(),
     val libraryEmpty: Boolean = false,
+    /** Zaznaczone przepisy (tryb zaznaczania po długim przytrzymaniu). */
+    val selected: Set<String> = emptySet(),
 ) {
     val noResults: Boolean get() = !loading && !libraryEmpty && items.isEmpty()
+    val selectionMode: Boolean get() = selected.isNotEmpty()
 }
 
 class LibraryViewModel(
-    recipes: RecipeRepository,
+    private val recipes: RecipeRepository,
     categories: CategoryRepository,
     tags: TagRepository,
 ) : ViewModel() {
 
     private val filters = MutableStateFlow(LibraryFilters())
+    private val selected = MutableStateFlow<Set<String>>(emptySet())
 
     val state: StateFlow<LibraryUiState> = combine(
-        recipes.observeSummaries(), categories.observeAll(), tags.observeAll(), filters,
-    ) { all, cats, tagList, f ->
+        recipes.observeSummaries(), categories.observeAll(), tags.observeAll(), filters, selected,
+    ) { all, cats, tagList, f, sel ->
+        val visible = all.filter { matches(it, f) }
         LibraryUiState(
             loading = false,
             filters = f,
             categories = cats,
             tags = tagList,
-            items = all.filter { matches(it, f) }.map(::toCard),
+            items = visible.map(::toCard),
             libraryEmpty = all.isEmpty(),
+            // zaznaczenie obejmuje tylko widoczne przepisy
+            selected = sel.intersect(visible.map { it.recipe.id }.toSet()),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
     fun onQuery(q: String) = filters.update { it.copy(query = q) }
     fun onCategory(id: String?) = filters.update { it.copy(categoryId = if (it.categoryId == id) null else id) }
     fun onTag(id: String?) = filters.update { it.copy(tagId = if (it.tagId == id) null else id) }
+
+    fun toggleSelection(id: String) = selected.update { if (id in it) it - id else it + id }
+    fun selectAllVisible() = selected.update { state.value.items.map { it.id }.toSet() }
+    fun clearSelection() = selected.update { emptySet() }
+
+    /** Usuwa zaznaczone (miękko) i zwraca ich identyfikatory — do „Cofnij”. */
+    fun deleteSelected(onDone: (List<String>) -> Unit) {
+        val ids = state.value.selected.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            recipes.softDelete(ids)
+            selected.update { emptySet() }
+            onDone(ids)
+        }
+    }
+
+    fun restore(ids: List<String>) {
+        viewModelScope.launch { recipes.restore(ids) }
+    }
 
     private fun matches(s: RecipeSummary, f: LibraryFilters): Boolean {
         val q = f.query.trim().lowercase()

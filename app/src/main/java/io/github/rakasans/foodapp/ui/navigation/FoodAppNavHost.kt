@@ -57,7 +57,7 @@ private object Routes {
 private data class TopLevel(val route: String, val label: String, val icon: ImageVector, val title: String)
 
 private val topLevel = listOf(
-    TopLevel(Routes.LIBRARY, "Biblioteka", Icons.Default.Home, "Biblioteka"),
+    TopLevel(Routes.LIBRARY, "Przepisy", Icons.Default.Home, "Moje przepisy"),
     TopLevel(Routes.COLLECTIONS, "Kolekcje", Icons.AutoMirrored.Filled.List, "Kolekcje"),
     TopLevel(Routes.ADD, "Dodaj", Icons.Default.Add, "Dodaj przepis"),
     TopLevel(Routes.SHOPPING, "Zakupy", Icons.Default.ShoppingCart, "Lista zakupów"),

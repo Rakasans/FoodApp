@@ -54,9 +54,17 @@ interface RecipeDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addTags(refs: List<RecipeTagCrossRef>)
 
-    @Query("UPDATE recipe SET deletedAt = :now, updatedAt = :now WHERE id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("SELECT id, name FROM recipe WHERE deletedAt IS NULL")
+    suspend fun activeNames(): List<RecipeNameRow>
+
+    @Query("UPDATE recipe SET deletedAt = :now, updatedAt = :now WHERE id IN (:ids)")
+    suspend fun softDelete(ids: List<String>, now: Long)
+
+    @Query("UPDATE recipe SET deletedAt = NULL, updatedAt = :now WHERE id IN (:ids)")
+    suspend fun restore(ids: List<String>, now: Long)
 }
+
+data class RecipeNameRow(val id: String, val name: String)
 
 @Dao
 interface CategoryDao {

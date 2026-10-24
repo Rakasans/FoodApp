@@ -9,6 +9,9 @@ import io.github.rakasans.foodapp.data.local.FoodDatabase
 import io.github.rakasans.foodapp.data.local.RecipeDetails
 import io.github.rakasans.foodapp.data.local.RecipeSummary
 import io.github.rakasans.foodapp.data.local.TagEntity
+import io.github.rakasans.foodapp.domain.DuplicateRules
+import io.github.rakasans.foodapp.domain.ExistingRecipe
+import io.github.rakasans.foodapp.domain.normalizeName
 import kotlinx.coroutines.flow.Flow
 
 class CategoryRepository(
@@ -76,13 +79,32 @@ class RecipeRepository(
 
     fun observeDetails(id: String): Flow<RecipeDetails?> = db.recipeDao().observeDetails(id)
 
-    suspend fun softDelete(id: String) = db.recipeDao().softDelete(id, clock.now())
+    /** Miękkie usuwanie — rekord zostaje z deletedAt, można go przywrócić („Cofnij”). */
+    suspend fun softDelete(ids: List<String>) = db.recipeDao().softDelete(ids, clock.now())
 
-    /** Wczytuje przepisy demonstracyjne (tylko do testów na urządzeniu; ekran Konto). */
-    suspend fun insertDemoData() {
+    suspend fun restore(ids: List<String>) = db.recipeDao().restore(ids, clock.now())
+
+    suspend fun existingRecipes(): List<ExistingRecipe> =
+        db.recipeDao().activeNames().map { ExistingRecipe(it.id, it.name) }
+
+    /** Nazwy przepisów demonstracyjnych, które już są w bibliotece. */
+    suspend fun demoDuplicates(): List<String> =
+        DuplicateRules.partition(DemoData.names(), existingRecipes()).first
+
+    /**
+     * Wczytuje przepisy demonstracyjne (tylko do testów; ekran Konto).
+     * @param skipExisting true = pomija przepisy o nazwach, które już istnieją.
+     * @return liczba dodanych przepisów.
+     */
+    suspend fun insertDemoData(skipExisting: Boolean): Int {
         val owner = auth.currentUser.value.id
+        val existingKeys = if (skipExisting) existingRecipes().map { normalizeName(it.name) }.toSet() else emptySet()
+        var added = 0
         db.withTransaction {
-            DemoData.recipes(owner, clock.now()).forEach { demo ->
+            DemoData.recipes(owner, clock.now())
+                .filterNot { normalizeName(it.recipe.name) in existingKeys }
+                .forEach { demo ->
+                added++
                 val dao = db.recipeDao()
                 dao.upsertRecipe(demo.recipe)
                 dao.upsertIngredients(demo.ingredients)
@@ -96,5 +118,6 @@ class RecipeRepository(
                 })
             }
         }
+        return added
     }
 }
