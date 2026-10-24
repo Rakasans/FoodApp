@@ -1,0 +1,82 @@
+package io.github.rakasans.foodapp.domain
+
+/** Wkład jednego przepisu (albo ręcznego wpisu) w listę zakupów. */
+data class ShoppingPart(
+    val name: String,
+    val quantity: Double?,
+    val unit: String?,
+    val noQuantity: Boolean = false,
+    val manual: Boolean = false,
+    val recipeName: String? = null,
+    val rawText: String? = null,
+    val factorLabel: String? = null,
+)
+
+data class ShoppingLine(
+    val key: String,
+    val name: String,
+    /** Np. „250 ml + 2 łyżka + ilość nieznana”. Pusty dla pozycji ręcznej bez ilości. */
+    val quantityText: String,
+    val differentUnits: Boolean,
+    val hasUnknownQuantity: Boolean,
+    val recipeNames: List<String>,
+    val parts: List<ShoppingPart>,
+)
+
+/**
+ * Reguły listy zakupów (specyfikacja, sekcja 6):
+ * 1. łączymy tylko identyczne znormalizowane nazwy,
+ * 2. sumujemy tylko tę samą jednostkę; dokładne konwersje g↔kg i ml↔l,
+ * 3. różne jednostki → osobne segmenty (bez sumowania),
+ * 4. brak ilości → segment „ilość nieznana”, „bez ilości” → „do smaku”.
+ */
+object ShoppingMerge {
+
+    fun merge(parts: List<ShoppingPart>): List<ShoppingLine> {
+        val groups = LinkedHashMap<String, MutableList<ShoppingPart>>()
+        parts.forEach { groups.getOrPut(normalizeName(it.name)) { mutableListOf() }.add(it) }
+        return groups.map { (key, group) -> toLine(key, group) }
+    }
+
+    private fun toLine(key: String, group: List<ShoppingPart>): ShoppingLine {
+        val sums = LinkedHashMap<String, Double>()
+        var unknown = 0
+        var toTaste = 0
+        group.filterNot { it.manual }.forEach { p ->
+            val q = p.quantity
+            if (q == null) {
+                if (p.noQuantity) toTaste++ else unknown++
+                return@forEach
+            }
+            val (unit, value) = baseUnit(p.unit.orEmpty().trim(), q)
+            sums[unit] = (sums[unit] ?: 0.0) + value
+        }
+        val segments = sums.map { (unit, value) -> displaySegment(unit, value) }.toMutableList()
+        if (unknown > 0) segments += if (unknown > 1) "ilość nieznana (×$unknown)" else "ilość nieznana"
+        if (toTaste > 0) segments += "do smaku"
+
+        return ShoppingLine(
+            key = key,
+            name = group.first().name.trim(),
+            quantityText = segments.joinToString(" + "),
+            differentUnits = sums.size > 1,
+            hasUnknownQuantity = unknown > 0,
+            recipeNames = group.map { if (it.manual) "dodane ręcznie" else it.recipeName.orEmpty() }.distinct(),
+            parts = group,
+        )
+    }
+
+    /** Dokładne konwersje do jednostki bazowej; reszta bez zmian (łyżka, szt., puszka…). */
+    private fun baseUnit(unit: String, value: Double): Pair<String, Double> = when (unit.lowercase()) {
+        "kg" -> "g" to value * 1000
+        "l" -> "ml" to value * 1000
+        else -> unit to value
+    }
+
+    private fun displaySegment(unit: String, value: Double): String = when {
+        unit == "g" && value >= 1000 -> "${formatQuantity(value / 1000)} kg"
+        unit == "ml" && value >= 1000 -> "${formatQuantity(value / 1000)} l"
+        unit.isEmpty() -> formatQuantity(value)
+        else -> "${formatQuantity(value)} $unit"
+    }
+}
