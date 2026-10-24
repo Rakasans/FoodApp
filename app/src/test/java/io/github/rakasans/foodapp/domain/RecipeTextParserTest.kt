@@ -7,6 +7,32 @@ import org.junit.Test
 class RecipeTextParserTest {
 
     @Test
+    fun `tekst z notatnika bez naglowkow`() {
+        val r = RecipeTextParser.parse(
+            """
+200ml oleju
+20g gochugaru
+15g chili
+Sezam - 10g
+5g soli
+3 Ząbki czosnku
+Mała dymka
+Cynamon 1 pałka
+Kardamon 6 ziarenek
+Liść laurowy 3
+Anyż gwiazdki 2 sztuki
+
+W misce aluminiowej albo garnku mieszasz chili z solą i czosnkiem i zostawiasz.
+
+Olej podgrzewasz z dymką i przyprawami, aż dymka się zarumieni, wyławiasz przyprawy i gorącym olejem zalewasz chili.
+            """.trimIndent()
+        )
+        assertEquals(11, r.ingredients.size)
+        assertEquals("Mała dymka", r.ingredients[6].raw)
+        assertEquals(2, r.steps.size)
+    }
+
+    @Test
     fun `tekst z naglowkami`() {
         val r = RecipeTextParser.parse(
             """

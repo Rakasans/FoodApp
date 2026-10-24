@@ -119,3 +119,10 @@ Te reguły są czystym Kotlinem w `domain/` — łatwe do testowania bez Android
 
 Znane uproszczenia v0.1: zdjęcie tylko z galerii (aparat — v0.2), grupy składników zachowywane, ale nieedytowalne,
 stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
+
+## v0.2.2 — zakresy, tekst z notatnika, link do oryginału
+- Baza w wersji 2: `ingredient.quantityMax` (migracja 1→2, `ALTER TABLE`, dane zostają). Zakres „300–350 g” = `quantity` 300 + `quantityMax` 350; na liście zakupów zakres jest osobnym segmentem, nigdy nie sumowany.
+- `IngredientParser`: ilość na końcu linii („Sezam - 10g”, „Liść laurowy 3”, „Cynamon 1 pałka”); liczba po „typ/nr/rozmiar” nie jest ilością. Nowe jednostki: pałka, laska, ziarenko, gwiazdka.
+- `RecipeTextParser` bez nagłówków: krótka linia bez ilości w środku listy składników („Mała dymka”) to składnik z ilością „brak danych”.
+- Zdjęcia w proporcjach źródła (przycięte do 2:3…2:1); miniatura rolki bez nakładki „play”.
+- Przycisk „Otwórz w Instagramie” / „Otwórz stronę” przy źródle (szczegóły i edytor).

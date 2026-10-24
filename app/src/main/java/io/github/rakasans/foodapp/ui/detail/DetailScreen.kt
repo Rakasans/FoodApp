@@ -1,5 +1,6 @@
 package io.github.rakasans.foodapp.ui.detail
 
+import io.github.rakasans.foodapp.ui.common.OpenOriginalButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,7 +75,7 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         r.photoUri?.let { path ->
-            RecipePhoto(path, photos, "Zdjęcie: ${r.name}", Modifier.fillMaxWidth().height(200.dp))
+            RecipePhoto(path, photos, "Zdjęcie: ${r.name}", Modifier.fillMaxWidth())
         }
         Text(r.name, style = MaterialTheme.typography.headlineSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -138,6 +139,7 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
             r.sourceUrl?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            OpenOriginalButton(r.sourceUrl)
         }
 
         HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outlineVariant)

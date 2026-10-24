@@ -5,6 +5,8 @@ data class ShoppingPart(
     val name: String,
     val quantity: Double?,
     val unit: String?,
+    /** Górna granica zakresu — taki wkład nie jest sumowany z innymi, pokazujemy go jako „300–350 g”. */
+    val quantityMax: Double? = null,
     val noQuantity: Boolean = false,
     val manual: Boolean = false,
     val recipeName: String? = null,
@@ -42,16 +44,24 @@ object ShoppingMerge {
         val sums = LinkedHashMap<String, Double>()
         var unknown = 0
         var toTaste = 0
+        val ranges = mutableListOf<String>()
         group.filterNot { it.manual }.forEach { p ->
             val q = p.quantity
             if (q == null) {
                 if (p.noQuantity) toTaste++ else unknown++
                 return@forEach
             }
+            val qMax = p.quantityMax
+            if (qMax != null) {
+                val unit = p.unit.orEmpty().trim()
+                ranges += "${formatQuantity(q)}–${formatQuantity(qMax)}" + if (unit.isEmpty()) "" else " $unit"
+                return@forEach
+            }
             val (unit, value) = baseUnit(p.unit.orEmpty().trim(), q)
             sums[unit] = (sums[unit] ?: 0.0) + value
         }
         val segments = sums.map { (unit, value) -> displaySegment(unit, value) }.toMutableList()
+        segments += ranges
         if (unknown > 0) segments += if (unknown > 1) "ilość nieznana (×$unknown)" else "ilość nieznana"
         if (toTaste > 0) segments += "do smaku"
 

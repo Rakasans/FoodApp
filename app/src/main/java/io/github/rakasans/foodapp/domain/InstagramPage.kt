@@ -38,7 +38,10 @@ object InstagramPage {
         val caption = (if (metaMatches) captionFromMeta(html) else null)
             ?: captionFromEmbed(html)
             ?: captionFromJson(html, shortcode)
-        val image = (if (metaMatches) imageFromMeta(html) else null) ?: imageFromEmbed(html)
+        val ogImage = if (metaMatches) imageFromMeta(html) else null
+        // og:image ma nałożony znaczek „play” (wersja dla podglądów linków); to samo zdjęcie bez znaczka
+        // jest w danych strony jako display_uri z tą samą nazwą pliku
+        val image = ogImage?.let { withoutOverlay(html, it) } ?: ogImage ?: imageFromEmbed(html)
             ?: (if (shortcode == null) jsonString(html, "display_url") ?: jsonString(html, "thumbnail_src") else null)
         val author = (if (metaMatches) authorFromMetaDescription(html) ?: authorFromMeta(html) else null)
             ?: authorFromEmbed(html)
@@ -80,6 +83,14 @@ object InstagramPage {
             .find(html)?.let { return unescapeJson(it.groupValues[1]) }
         captionRx.find(html)?.let { return unescapeJson(it.groupValues[1]) }
         return null
+    }
+
+    /** Szuka w danych strony adresu tego samego pliku zdjęcia co og:image, ale bez nakładki (bez `cmp1` w `stp`). */
+    private fun withoutOverlay(html: String, ogImage: String): String? {
+        val file = Regex("""/([^/?]+\.(?:jpg|jpeg|webp|heic))""").find(ogImage)?.groupValues?.get(1) ?: return null
+        return Regex(""""display_(?:uri|url)"\s*:\s*"((?:[^"\\]|\\.)*)"""").findAll(html)
+            .map { unescapeJson(it.groupValues[1]) }
+            .firstOrNull { it.contains("/$file") && !it.contains("cmp1") }
     }
 
     private fun jsonString(html: String, key: String): String? =

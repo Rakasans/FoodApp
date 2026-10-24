@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -20,7 +22,7 @@ import androidx.room.RoomDatabase
         ShoppingPartEntity::class,
         ShoppingItemStateEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class FoodDatabase : RoomDatabase() {
@@ -29,7 +31,16 @@ abstract class FoodDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
 
     companion object {
+        /** v2: zakresy ilości w składnikach. Migracja zachowuje istniejące przepisy. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE ingredient ADD COLUMN quantityMax REAL")
+            }
+        }
+
         fun create(context: Context): FoodDatabase =
-            Room.databaseBuilder(context, FoodDatabase::class.java, "foodapp.db").build()
+            Room.databaseBuilder(context, FoodDatabase::class.java, "foodapp.db")
+                .addMigrations(MIGRATION_1_2)
+                .build()
     }
 }

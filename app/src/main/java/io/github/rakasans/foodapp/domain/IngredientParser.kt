@@ -6,13 +6,15 @@ package io.github.rakasans.foodapp.domain
  */
 data class ParsedIngredient(
     val name: String,
-    /** null = ilość nieznana (brak liczby albo zakres, np. „2–3 łyżki”). */
+    /** null = ilość nieznana. Przy zakresie („300–350 g”) to dolna granica. */
     val quantity: Double?,
     val unit: String?,
     /** Jednostka przyjęta automatycznie („2 jajka” → szt.) — do sprawdzenia przez użytkownika. */
     val unitInferred: Boolean = false,
-    /** Źródło podaje zakres — nie wybieramy za użytkownika jednej wartości. */
+    /** Źródło podaje zakres — zapisujemy oba końce, nie wybieramy za użytkownika jednej wartości. */
     val isRange: Boolean = false,
+    /** Górna granica zakresu („300–350 g” → 350); null, gdy to nie zakres. */
+    val quantityMax: Double? = null,
 )
 
 /**
@@ -41,6 +43,10 @@ object IngredientParser {
         add("plaster", "plaster", "plastry", "plastrów")
         add("pęczek", "pęczek", "pęczki", "pęczków")
         add("kostka", "kostka", "kostki", "kostek", "kostkę")
+        add("pałka", "pałka", "pałki", "pałek", "pałkę")
+        add("laska", "laska", "laski", "lasek", "laskę")
+        add("ziarenko", "ziarenko", "ziarenka", "ziarenek", "ziarno", "ziarna", "ziaren")
+        add("gwiazdka", "gwiazdka", "gwiazdki", "gwiazdek", "gwiazdkę")
     }
 
     private val FRACTIONS = mapOf('½' to 0.5, '¼' to 0.25, '¾' to 0.75, '⅓' to 1.0 / 3, '⅔' to 2.0 / 3)
@@ -51,6 +57,10 @@ object IngredientParser {
     private val MIXED = Regex("""^(\d+)\s+(\d+)\s*/\s*(\d+)\s*(.*)$""")
     private val FRACTION = Regex("""^(\d+)\s*/\s*(\d+)\s*(.*)$""")
     private val DECIMAL = Regex("""^($NUM)\s*(.*)$""")
+    /** Ilość na końcu: „Sezam - 10g”, „Liść laurowy 3”, „Cynamon 1 pałka”, „Anyż gwiazdki 2 sztuki”. */
+    private val TRAILING = Regex("""^(\p{L}[\p{L}\s]*?)\s*[-–—:]?\s*($NUM)\s*(\p{L}+\.?)?$""")
+    /** Liczba po tych słowach to oznaczenie, nie ilość („mąka typ 650”, „makaron nr 5”). */
+    private val NOT_QUANTITY_BEFORE = setOf("typ", "typu", "nr", "numer", "rozmiar", "rozm")
 
     /** „około 300 ml”, „ok. 2 łyżki”, „~200 g” — przybliżenie z oryginału zostaje w rawText. */
     private val APPROX = Regex("""^(około|okolo|ok\.|ok(?=\s)|ca\.|circa|mniej więcej|~)\s*""", RegexOption.IGNORE_CASE)
@@ -61,7 +71,10 @@ object IngredientParser {
 
         RANGE.matchEntire(text)?.let { m ->
             val (unit, rest) = splitUnit(m.groupValues[3])
-            return ParsedIngredient(rest.ifBlank { text }, quantity = null, unit = unit, isRange = true)
+            val min = m.groupValues[1].replace(',', '.').toDouble()
+            val max = m.groupValues[2].replace(',', '.').toDouble()
+            return if (unit != null) ParsedIngredient(rest.ifBlank { text }, quantity = min, unit = unit, isRange = true, quantityMax = max)
+            else ParsedIngredient(rest.ifBlank { text }, quantity = min, unit = "szt.", unitInferred = true, isRange = true, quantityMax = max)
         }
         MIXED.matchEntire(text)?.let { m ->
             val denominator = m.groupValues[3].toDouble()
@@ -80,8 +93,21 @@ object IngredientParser {
         }
         val firstWord = text.substringBefore(' ').lowercase()
         WORD_NUMBERS[firstWord]?.let { q -> return withQuantity(q, text.substringAfter(' ', ""), text) }
+        trailing(text)?.let { return it }
 
         return ParsedIngredient(name = text, quantity = null, unit = null)
+    }
+
+    private fun trailing(text: String): ParsedIngredient? {
+        val m = TRAILING.matchEntire(text) ?: return null
+        val name = m.groupValues[1].trim()
+        val words = name.split(Regex("\\s+"))
+        if (words.size > 4 || words.last().lowercase() in NOT_QUANTITY_BEFORE) return null
+        val q = m.groupValues[2].replace(',', '.').toDouble()
+        val unitToken = m.groupValues[3]
+        if (unitToken.isEmpty()) return ParsedIngredient(name, q, "szt.", unitInferred = true)
+        val unit = UNITS[unitToken.lowercase().trimEnd('.')] ?: return null
+        return ParsedIngredient(name, q, unit)
     }
 
     private fun withQuantity(q: Double, remainder: String, original: String): ParsedIngredient {

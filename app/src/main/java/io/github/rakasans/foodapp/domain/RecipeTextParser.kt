@@ -58,8 +58,11 @@ object RecipeTextParser {
         var mode = Mode.NONE
         var group: String? = null
 
+        var lastWasIngredient = false
         lines.forEachIndexed { index, line ->
             if (index == nameIndex && name.isNotEmpty()) return@forEachIndexed
+            val countBefore = ingredients.size
+
             when {
                 INGREDIENT_HEADERS.matches(line) -> { mode = Mode.INGREDIENTS; group = null; return@forEachIndexed }
                 STEP_HEADERS.matches(line) -> { mode = Mode.STEPS; return@forEachIndexed }
@@ -87,16 +90,21 @@ object RecipeTextParser {
                 }
                 Mode.NONE -> if (!hasHeaders) {
                     // Bez nagłówków: numerowane linie to kroki, linie z ilością albo punktorem to składniki.
+                    // Krótka linia bez ilości („Mała dymka”) w środku listy składników też jest składnikiem —
+                    // ilość zostaje pusta („brak danych”), niczego nie dopisujemy.
                     val m = STEP_NUMBER.matchEntire(line)
                     when {
                         m != null && !looksLikeIngredient(m.groupValues[2]) -> steps.add(m.groupValues[2], numbered = true)
                         BULLET.containsMatchIn(line) || looksLikeIngredient(line) ->
                             ingredients += ParsedIngredientLine(line.replace(BULLET, "").trim())
                         steps.isNotEmpty() || line.length > 60 -> steps.add(line, numbered = false)
+                        isBareIngredient(line) && (lastWasIngredient || lines.getOrNull(index + 1)?.let(::looksLikeIngredient) == true) ->
+                            ingredients += ParsedIngredientLine(line)
                     }
                 }
                 // z nagłówkami: tekst przed listą składników to wstęp — pomijamy
             }
+            lastWasIngredient = ingredients.size > countBefore
         }
         return ParsedRecipeText(name, servings, ingredients, steps.result())
     }
@@ -121,8 +129,6 @@ object RecipeTextParser {
         fun result(): List<String> = steps
             .map { it.replace(SIGN_OFF, "").trim() }
             .filter { it.isNotEmpty() }
-
-        private fun String.endsWithAny(vararg chars: Char) = isNotEmpty() && last() in chars
     }
 
     private enum class Mode { NONE, INGREDIENTS, STEPS }
@@ -141,6 +147,13 @@ object RecipeTextParser {
             line.split(' ').size <= 12 &&
             IngredientParser.parse(line).quantity == null &&
             !line.endsWith(":") && !line.endsWith(".") && !line.endsWith("!") && !line.endsWith("?")
+
+    /** Krótka nazwa bez ilości i bez kropki na końcu, np. „Mała dymka”, „Sól”. */
+    private fun isBareIngredient(line: String): Boolean =
+        line.length <= 40 && line.split(' ').size <= 5 && line.first().isLetter() &&
+            !line.endsWithAny('.', '!', '?', ':') && IngredientParser.parse(line).quantity == null
+
+    private fun String.endsWithAny(vararg chars: Char) = isNotEmpty() && last() in chars
 
     private fun looksLikeIngredient(line: String): Boolean {
         val p = IngredientParser.parse(line)

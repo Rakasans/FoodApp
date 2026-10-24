@@ -1,5 +1,6 @@
 package io.github.rakasans.foodapp.ui.editor
 
+import io.github.rakasans.foodapp.ui.common.OpenOriginalButton
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -134,7 +135,7 @@ fun EditorScreen(
         SectionLabel("Zdjęcie potrawy")
         val photo = d.photoPath
         if (photo != null) {
-            RecipePhoto(photo, viewModel.photos, "Zdjęcie potrawy", Modifier.fillMaxWidth().height(180.dp))
+            RecipePhoto(photo, viewModel.photos, "Zdjęcie potrawy", Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
                     Text("Zmień zdjęcie")
@@ -273,6 +274,7 @@ fun EditorScreen(
                     SectionLabel("Źródło i oryginalny materiał")
                     d.materialNote?.let { Text("Notatka: $it") }
                     d.sourceUrl?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    OpenOriginalButton(d.sourceUrl)
                     TextButton(onClick = { showOriginal = !showOriginal }) {
                         Text(if (showOriginal) "Ukryj oryginał" else "Pokaż oryginał")
                     }
@@ -349,7 +351,7 @@ private fun IngredientRow(
                 val summary = buildString {
                     append("Rozpoznano: ")
                     if (ing.noQuantity) append("bez ilości")
-                    else append(ing.quantity?.let(::formatQuantity) ?: "ilość nieznana")
+                    else append(ing.quantity?.let { q -> formatQuantity(q) + (ing.quantityMax?.let { "–" + formatQuantity(it) } ?: "") } ?: "ilość nieznana")
                     ing.unit?.takeIf { !ing.noQuantity }?.let { append(" ").append(it) }
                     append(" · ").append(ing.name.ifBlank { ing.rawText })
                 }
@@ -358,13 +360,15 @@ private fun IngredientRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    if (missing) Badge(BadgeUi(if (ing.isRange) "Zakres — wpisz ilość" else "Brak ilości", BadgeKind.WARN))
+                    if (missing) Badge(BadgeUi("Brak ilości", BadgeKind.WARN))
                     if (ing.unitInferred && !ing.noQuantity) Badge(BadgeUi("Jednostka przyjęta — sprawdź", BadgeKind.INFO))
                     TextButton(onClick = onToggleNoQuantity) { Text(if (ing.noQuantity) "Ma ilość" else "Bez ilości") }
                     TextButton(onClick = onToggleCorrect) { Text(if (correcting) "Gotowe" else "Popraw") }
                 }
                 if (correcting) {
-                    var qtyText by remember(ing.id) { mutableStateOf(ing.quantity?.let(::formatQuantity).orEmpty()) }
+                    var qtyText by remember(ing.id) {
+                        mutableStateOf(ing.quantity?.let { q -> formatQuantity(q) + (ing.quantityMax?.let { "-" + formatQuantity(it) } ?: "") }.orEmpty())
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(
                             value = ing.name, onValueChange = { onCorrect(it, null, null) },

@@ -69,6 +69,8 @@ data class IngredientEntity(
     val noQuantity: Boolean = false,
     /** Jednostka przyjęta automatycznie przez parser (do sprawdzenia przez użytkownika). */
     val unitInferred: Boolean = false,
+    /** Górna granica zakresu („300–350 g”); `quantity` jest wtedy dolną. Dodane w wersji bazy 2. */
+    val quantityMax: Double? = null,
 )
 
 @Entity(

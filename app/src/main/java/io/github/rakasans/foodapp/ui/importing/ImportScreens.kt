@@ -311,7 +311,7 @@ fun OcrImportScreen(
                 Text("Rozpoznawanie tekstu…")
             }
             is OcrStep.Review -> {
-                RecipePhoto(s.path, container.photos, "Rozpoznawane zdjęcie", Modifier.fillMaxWidth().height(160.dp))
+                RecipePhoto(s.path, container.photos, "Rozpoznawane zdjęcie", Modifier.fillMaxWidth())
                 Text("Sprawdź rozpoznany tekst", fontWeight = FontWeight.Bold)
                 Text(
                     "Popraw błędy rozpoznawania, jeśli są. Z tego tekstu powstanie szkic — oryginał zostanie przy przepisie.",

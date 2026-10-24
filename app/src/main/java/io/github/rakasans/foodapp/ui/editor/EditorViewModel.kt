@@ -148,10 +148,11 @@ class EditorViewModel(
         d.copy(ingredients = d.ingredients.map { i ->
             if (i.id != id) i else i.copy(
                 name = name ?: i.name,
-                quantity = if (quantityText != null) quantityText.replace(',', '.').toDoubleOrNull() else i.quantity,
+                quantity = if (quantityText != null) parseRange(quantityText).first else i.quantity,
+                quantityMax = if (quantityText != null) parseRange(quantityText).second else i.quantityMax,
                 unit = unit ?: i.unit,
                 unitInferred = if (unit != null) false else i.unitInferred,
-                isRange = if (quantityText != null) false else i.isRange,
+                isRange = if (quantityText != null) parseRange(quantityText).second != null else i.isRange,
                 manuallyCorrected = true,
             )
         })
@@ -313,4 +314,12 @@ class EditorViewModel(
             _state.update { it.copy(dirty = false, savedOnce = true) }
         }
     }
+}
+
+/** „300” → (300, null); „300-350” / „300–350” → (300, 350). */
+private fun parseRange(text: String): Pair<Double?, Double?> {
+    val parts = text.split('-', '–', '—').map { it.trim().replace(',', '.') }
+    val min = parts.getOrNull(0)?.toDoubleOrNull()
+    val max = if (parts.size == 2) parts[1].toDoubleOrNull() else null
+    return min to max
 }

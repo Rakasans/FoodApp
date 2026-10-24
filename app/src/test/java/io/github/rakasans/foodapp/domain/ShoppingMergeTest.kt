@@ -66,4 +66,15 @@ class ShoppingMergeTest {
         assertEquals(2.0, Scaling.ByServings(original = 2, target = 4).factor, 1e-9)
         assertEquals("×0,5 przepisu", Scaling.ByMultiplier(0.5).label)
     }
+
+    @Test
+    fun `zakres to osobny segment bez sumowania`() {
+        val line = ShoppingMerge.merge(
+            listOf(
+                ShoppingPart("mąka", 300.0, "g", quantityMax = 350.0, recipeName = "Kluski"),
+                ShoppingPart("mąka", 200.0, "g", recipeName = "Naleśniki"),
+            )
+        ).single()
+        assertEquals("200 g + 300–350 g", line.quantityText)
+    }
 }

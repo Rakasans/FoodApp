@@ -14,6 +14,8 @@ data class DraftIngredient(
     val rawText: String = "",
     val name: String = "",
     val quantity: Double? = null,
+    /** Górna granica zakresu (quantity = dolna). */
+    val quantityMax: Double? = null,
     val unit: String? = null,
     val noQuantity: Boolean = false,
     val unitInferred: Boolean = false,
@@ -29,7 +31,7 @@ data class DraftIngredient(
         if (manuallyCorrected) return copy(rawText = text)
         val p = IngredientParser.parse(text)
         return copy(
-            rawText = text, name = p.name, quantity = p.quantity, unit = p.unit,
+            rawText = text, name = p.name, quantity = p.quantity, quantityMax = p.quantityMax, unit = p.unit,
             unitInferred = p.unitInferred, isRange = p.isRange,
         )
     }
@@ -82,7 +84,8 @@ data class RecipeDraft(
             sourceAuthor = d.recipe.sourceAuthor,
             ingredients = d.ingredients.sortedBy { it.position }.map {
                 DraftIngredient(
-                    id = it.id, rawText = it.rawText, name = it.name, quantity = it.quantity, unit = it.unit,
+                    id = it.id, rawText = it.rawText, name = it.name, quantity = it.quantity, quantityMax = it.quantityMax,
+                    isRange = it.quantityMax != null, unit = it.unit,
                     noQuantity = it.noQuantity, unitInferred = it.unitInferred,
                     // w zatwierdzonym przepisie pola mogły być poprawione ręcznie — nie nadpisujemy ich przy zmianie zapisu
                     manuallyCorrected = d.recipe.status == RecipeStatus.APPROVED,

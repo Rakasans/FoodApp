@@ -44,12 +44,44 @@ class IngredientParserTest {
     }
 
     @Test
-    fun `zakres nie jest zgadywany`() {
+    fun `zakres zapisuje oba konce`() {
         val r = p("2–3 ząbki czosnku")
-        assertEquals(null, r.quantity)
+        assertEquals(2.0, r.quantity!!, 1e-9)
+        assertEquals(3.0, r.quantityMax!!, 1e-9)
         assertTrue(r.isRange)
         assertEquals("ząbek", r.unit)
         assertEquals("czosnku", r.name)
+    }
+
+    @Test
+    fun `zakres w gramach z myslnikiem`() {
+        val r = p("300-350 g mąki pszennej")
+        assertEquals(300.0, r.quantity!!, 1e-9)
+        assertEquals(350.0, r.quantityMax!!, 1e-9)
+        assertEquals("g", r.unit)
+        assertEquals("mąki pszennej", r.name)
+    }
+
+    @Test
+    fun `ilosc na koncu linii`() {
+        val sezam = p("Sezam - 10g")
+        assertEquals("Sezam", sezam.name); assertEquals(10.0, sezam.quantity!!, 1e-9); assertEquals("g", sezam.unit)
+        val lisc = p("Liść laurowy 3")
+        assertEquals("Liść laurowy", lisc.name); assertEquals(3.0, lisc.quantity!!, 1e-9); assertTrue(lisc.unitInferred)
+        val cynamon = p("Cynamon 1 pałka")
+        assertEquals("Cynamon", cynamon.name); assertEquals("pałka", cynamon.unit)
+        val kardamon = p("Kardamon 6 ziarenek")
+        assertEquals("Kardamon", kardamon.name); assertEquals(6.0, kardamon.quantity!!, 1e-9); assertEquals("ziarenko", kardamon.unit)
+        val anyz = p("Anyż gwiazdki 2 sztuki")
+        assertEquals("Anyż gwiazdki", anyz.name); assertEquals("szt.", anyz.unit); assertFalse(anyz.unitInferred)
+    }
+
+    @Test
+    fun `oznaczenie to nie ilosc`() {
+        assertEquals(null, p("Mąka typ 650").quantity)
+        assertEquals(null, p("Makaron nr 5").quantity)
+        assertEquals(null, p("Śmietana 18%").quantity)
+        assertEquals(null, p("Piecz 20 minut").quantity)
     }
 
     @Test

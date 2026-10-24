@@ -87,4 +87,15 @@ class InstagramPageTest {
             InstagramPage.canonicalUrl("https://www.instagram.com/reel/De3nC8wgGN0/?igsh=MWQ1ZGUxMzBkMA=="),
         )
     }
+
+    @Test
+    fun `miniatura bez znaczka play z danych strony`() {
+        val html = """
+            <meta property="og:url" content="https://www.instagram.com/reel/KLUSKI1/" />
+            <meta property="og:description" content="1 likes, 0 comments - autor – October 24, 2026: &quot;Kluski&quot;." />
+            <meta property="og:image" content="https://cdn.example/v/123_abc_n.jpg?stp=cmp1_dst-jpg_s640x640&amp;oh=x" />
+            <script>{"display_uri":"https:\/\/cdn.example\/v\/999_inne_n.jpg?stp=dst-jpg"},{"display_uri":"https:\/\/cdn.example\/v\/123_abc_n.jpg?stp=dst-jpg_s640x640\u0026oh=y"}</script>
+        """.trimIndent()
+        assertEquals("https://cdn.example/v/123_abc_n.jpg?stp=dst-jpg_s640x640&oh=y", InstagramPage.parse(html, "KLUSKI1").imageUrl)
+    }
 }

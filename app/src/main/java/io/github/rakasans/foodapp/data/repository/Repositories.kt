@@ -175,7 +175,7 @@ class RecipeRepository(
                 val p = IngredientParser.parse(line.raw)
                 IngredientEntity(
                     id = Ids.new(), recipeId = id, position = index, groupName = line.group,
-                    rawText = line.raw, name = p.name.ifBlank { line.raw }, quantity = p.quantity, unit = p.unit,
+                    rawText = line.raw, name = p.name.ifBlank { line.raw }, quantity = p.quantity, quantityMax = p.quantityMax, unit = p.unit,
                     unitInferred = p.unitInferred,
                 )
             })
@@ -224,7 +224,7 @@ class RecipeRepository(
                 val p = IngredientParser.parse(line.raw)
                 IngredientEntity(
                     id = Ids.new(), recipeId = id, position = index, groupName = line.group,
-                    rawText = line.raw, name = p.name.ifBlank { line.raw }, quantity = p.quantity, unit = p.unit,
+                    rawText = line.raw, name = p.name.ifBlank { line.raw }, quantity = p.quantity, quantityMax = p.quantityMax, unit = p.unit,
                     unitInferred = p.unitInferred,
                 )
             })
@@ -296,6 +296,7 @@ class RecipeRepository(
                         id = i.id, recipeId = d.id, position = index, groupName = i.groupName,
                         rawText = i.rawText.trim(), name = i.name.trim().ifBlank { i.rawText.trim() },
                         quantity = if (i.noQuantity) null else i.quantity,
+                        quantityMax = if (i.noQuantity) null else i.quantityMax,
                         unit = i.unit?.trim()?.ifBlank { null },
                         noQuantity = i.noQuantity, unitInferred = i.unitInferred,
                     )
