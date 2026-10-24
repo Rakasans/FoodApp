@@ -30,6 +30,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -88,9 +89,11 @@ fun EditorScreen(
     if (state.loading) return
     val d = state.draft
 
+    // Układ: przewijany formularz + stały pasek akcji na dole. imePadding na całości: przy klawiaturze
+    // pasek przesuwa się nad nią, a formularz się skraca (aktywne pole da się przewinąć).
+    Column(Modifier.fillMaxSize().imePadding()) {
     Column(
-        // imePadding: przy wysuniętej klawiaturze lista się skraca i aktywne pole da się przewinąć nad klawiaturę.
-        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
+        Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -278,14 +281,37 @@ fun EditorScreen(
             }
         }
 
-        Button(onClick = viewModel::approve, modifier = Modifier.fillMaxWidth()) {
-            Text(if (state.editingApproved) "Zapisz zmiany" else "Zatwierdź przepis")
-        }
         if (!state.editingApproved) {
             TextButton(onClick = viewModel::askDiscardDraft, modifier = Modifier.fillMaxWidth()) {
                 Text("Odrzuć szkic", color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+
+    // Stały pasek akcji — zawsze widoczny, bez przewijania na dół formularza.
+    Surface(tonalElevation = 3.dp, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.surface) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = when {
+                    state.editingApproved && state.dirty -> "Niezapisane zmiany"
+                    state.editingApproved -> "Brak zmian"
+                    state.savedOnce && !state.dirty -> "Szkic zapisany"
+                    state.dirty -> "Zapisywanie…"
+                    else -> "Szkic"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Button(onClick = viewModel::approve) {
+                Text(if (state.editingApproved) "Zapisz zmiany" else "Zatwierdź przepis")
+            }
+        }
+    }
     }
 
     EditorDialogs(state.dialog, viewModel)

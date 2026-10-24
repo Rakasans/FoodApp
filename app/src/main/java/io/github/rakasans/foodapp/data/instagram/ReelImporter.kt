@@ -23,6 +23,8 @@ class ReelImporter(
     private val recipes: RecipeRepository,
     private val photos: PhotoStore,
     private val connectivity: Connectivity,
+    /** Katalog na zapis diagnostyczny pobranych stron (tylko debug; null = wyłączone). */
+    private val debugDir: java.io.File? = null,
 ) {
     sealed interface Result {
         val id: String
@@ -71,29 +73,49 @@ class ReelImporter(
         recipes.waitingReelIds().forEach { process(it) }
     }
 
+    /**
+     * Próbuje kilku wariantów pobrania. Instagram oddaje różną treść zależnie od tego, kto pyta:
+     * zwykłej przeglądarce często pustą powłokę aplikacji lub logowanie, robotom podglądu linków
+     * (tak jak Messenger/WhatsApp) — metatagi z opisem i miniaturą.
+     */
     private suspend fun fetch(url: String): InstagramPost? = withContext(Dispatchers.IO) {
         val code = InstagramPage.shortcode(url) ?: return@withContext null
-        var lastParsed: InstagramPost? = null
-        for (page in listOf(InstagramPage.embedUrl(code), InstagramPage.pageUrl(code))) {
-            val html = get(page) ?: continue
+        val attempts = listOf(
+            InstagramPage.pageUrl(code) to UA_LINK_PREVIEW,
+            InstagramPage.embedUrl(code) to UA_DESKTOP,
+            InstagramPage.postUrl(code) to UA_LINK_PREVIEW,
+            InstagramPage.embedUrl(code) to UA_MOBILE,
+        )
+        var best: InstagramPost? = null
+        attempts.forEachIndexed { index, (page, agent) ->
+            val html = get(page, agent) ?: return@forEachIndexed
             val post = InstagramPage.parse(html)
-            Log.d(TAG, "page=$page length=${html.length} caption=${post.caption != null} image=${post.imageUrl != null}")
+            val title = Regex("<title[^>]*>(.*?)</title>", RegexOption.DOT_MATCHES_ALL).find(html)?.groupValues?.get(1)?.trim()?.take(80)
+            Log.d(
+                TAG,
+                "try=$index ua=${agent.take(24)} page=$page length=${html.length} title=$title " +
+                    "ogDesc=${html.contains("og:description")} caption=${post.caption != null} image=${post.imageUrl != null}",
+            )
+            saveDebug("ig_try$index.html", html)
             if (post.caption != null) return@withContext post
-            lastParsed = post
+            if (best?.imageUrl == null && post.imageUrl != null) best = post
         }
-        lastParsed
+        best
     }
 
-    private fun get(url: String): String? = runCatching {
+    private fun get(url: String, agent: String): String? = runCatching {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 10_000
         c.readTimeout = 15_000
         c.instanceFollowRedirects = true
-        c.setRequestProperty("User-Agent", USER_AGENT)
+        c.setRequestProperty("User-Agent", agent)
+        c.setRequestProperty("Accept", "text/html,application/xhtml+xml")
         c.setRequestProperty("Accept-Language", "pl-PL,pl;q=0.9,en;q=0.8")
         try {
-            if (c.responseCode != 200) {
-                Log.d(TAG, "HTTP ${c.responseCode} for $url")
+            val code = c.responseCode
+            if (c.url.toString() != url) Log.d(TAG, "redirect $url -> ${c.url}")
+            if (code != 200) {
+                Log.d(TAG, "HTTP $code for $url")
                 null
             } else c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
@@ -101,13 +123,19 @@ class ReelImporter(
         }
     }.onFailure { Log.d(TAG, "fetch failed: $it") }.getOrNull()
 
+    /** Tylko wersja debug: zapis pobranej strony do diagnozy (Android/data/<pakiet>/files/debug). */
+    private fun saveDebug(name: String, content: String) {
+        val dir = debugDir ?: return
+        runCatching { dir.mkdirs(); java.io.File(dir, name).writeText(content) }
+    }
+
     private suspend fun download(url: String): String? = withContext(Dispatchers.IO) {
         runCatching {
             val file = photos.newPhotoFile()
             val c = URL(url).openConnection() as HttpURLConnection
             c.connectTimeout = 10_000
             c.readTimeout = 20_000
-            c.setRequestProperty("User-Agent", USER_AGENT)
+            c.setRequestProperty("User-Agent", UA_MOBILE)
             try {
                 if (c.responseCode != 200) return@runCatching null
                 c.inputStream.use { input -> file.outputStream().use { input.copyTo(it) } }
@@ -120,7 +148,11 @@ class ReelImporter(
 
     private companion object {
         const val TAG = "ReelImporter"
-        const val USER_AGENT =
+        const val UA_MOBILE =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
+        const val UA_DESKTOP =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        /** Tak przedstawiają się roboty podglądu linków (Messenger, WhatsApp). */
+        const val UA_LINK_PREVIEW = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
     }
 }

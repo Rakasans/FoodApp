@@ -17,6 +17,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -63,6 +67,8 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
         details.steps.map { it.text },
     )
 
+    // Pływający przycisk „Edytuj” — zawsze pod ręką, bez przewijania na dół.
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -160,8 +166,15 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
                 else "Brak informacji o alergenach. To nie oznacza, że przepis ich nie zawiera."
             )
         }
-        OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Edytuj przepis") }
-        Box(Modifier.padding(bottom = 24.dp))
+        // miejsce, żeby przycisk „Edytuj” nie zasłaniał ostatniej sekcji
+        Box(Modifier.padding(bottom = 72.dp))
+    }
+    ExtendedFloatingActionButton(
+        onClick = onEdit,
+        icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+        text = { Text("Edytuj") },
+        modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+    )
     }
 }
 

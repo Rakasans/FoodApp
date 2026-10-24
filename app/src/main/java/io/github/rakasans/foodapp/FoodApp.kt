@@ -33,7 +33,10 @@ class AppContainer(context: Context) {
     val ocr = OcrEngine(context)
     val shareInbox = ShareInbox()
     val connectivity = Connectivity(context)
-    val reels = ReelImporter(recipes, photos, connectivity)
+    val reels = ReelImporter(
+        recipes, photos, connectivity,
+        debugDir = if (BuildConfig.DEBUG) context.getExternalFilesDir("debug") else null,
+    )
 }
 
 class FoodApp : Application() {

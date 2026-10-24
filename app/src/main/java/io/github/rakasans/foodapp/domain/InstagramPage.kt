@@ -24,6 +24,8 @@ object InstagramPage {
 
     fun pageUrl(shortcode: String) = "https://www.instagram.com/reel/$shortcode/"
 
+    fun postUrl(shortcode: String) = "https://www.instagram.com/p/$shortcode/"
+
     fun parse(html: String): InstagramPost {
         val caption = captionFromJson(html) ?: captionFromEmbed(html) ?: captionFromMeta(html)
         val image = imageFromMeta(html) ?: imageFromEmbed(html) ?: jsonString(html, "display_url") ?: jsonString(html, "thumbnail_src")
