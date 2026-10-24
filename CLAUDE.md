@@ -10,3 +10,8 @@
   - lista zakupów: łączyć tylko identyczne nazwy i zgodne jednostki; bez przeliczania sztuk na gramy; przeliczenie porcji nie zmienia przepisu.
 - Reguły domenowe w `domain/` są czystym Kotlinem i mają testy jednostkowe — każda zmiana reguł = test.
 - Kolory tylko z tokenów `ui/theme/Theme.kt`; bursztyn zarezerwowany dla ostrzeżeń.
+## Raportowanie postępu
+Przy zadaniu na więcej niż ~3 etapy raportuj postęp w repozytorium Rakasans/claude-progress
+zgodnie z jego PROTOCOL.md: na starcie załóż issue (etykieta in-progress, tytuł "<Projekt>: <zadanie> [0/N]"),
+po każdym etapie zaktualizuj tytuł i body, przy pytaniu do użytkownika ustaw needs-input
+(pierwsza linia body = pytanie), na końcu ustaw done i zamknij issue.
