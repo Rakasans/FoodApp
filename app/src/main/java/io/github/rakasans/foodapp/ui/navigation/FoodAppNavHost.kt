@@ -1,5 +1,6 @@
 package io.github.rakasans.foodapp.ui.navigation
 
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -27,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,12 +37,15 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.rakasans.foodapp.AppContainer
 import io.github.rakasans.foodapp.ui.account.AccountScreen
+import io.github.rakasans.foodapp.ui.add.AddScreen
 import io.github.rakasans.foodapp.ui.common.Badge
 import io.github.rakasans.foodapp.ui.common.BadgeKind
 import io.github.rakasans.foodapp.ui.common.BadgeUi
 import io.github.rakasans.foodapp.ui.common.PlannedScreen
 import io.github.rakasans.foodapp.ui.detail.DetailScreen
 import io.github.rakasans.foodapp.ui.detail.DetailViewModel
+import io.github.rakasans.foodapp.ui.editor.EditorScreen
+import io.github.rakasans.foodapp.ui.editor.EditorViewModel
 import io.github.rakasans.foodapp.ui.library.LibraryScreen
 import io.github.rakasans.foodapp.ui.library.LibraryViewModel
 
@@ -51,7 +56,10 @@ private object Routes {
     const val SHOPPING = "shopping"
     const val ACCOUNT = "account"
     const val DETAIL = "recipe/{id}"
+    const val EDITOR_NEW = "editor/new"
+    const val EDITOR = "editor/{id}"
     fun detail(id: String) = "recipe/$id"
+    fun editor(id: String) = "editor/$id"
 }
 
 private data class TopLevel(val route: String, val label: String, val icon: ImageVector, val title: String)
@@ -64,6 +72,14 @@ private val topLevel = listOf(
     TopLevel(Routes.ACCOUNT, "Konto", Icons.Default.Person, "Konto"),
 )
 
+/** Po zatwierdzeniu: szczegóły przepisu, a pod spodem biblioteka (bez edytora na stosie). */
+private fun NavHostController.openDetailReplacing(id: String) {
+    navigate(Routes.detail(id)) {
+        popUpTo(Routes.LIBRARY)
+        launchSingleTop = true
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoodAppNavHost(container: AppContainer) {
@@ -71,15 +87,23 @@ fun FoodAppNavHost(container: AppContainer) {
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
     val current = topLevel.firstOrNull { it.route == route }
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+
+    val title = current?.title ?: when (route) {
+        Routes.EDITOR_NEW -> "Nowy przepis"
+        Routes.EDITOR -> "Edycja przepisu"
+        else -> "Przepis"
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(current?.title ?: "Przepis") },
+                title = { Text(title) },
                 navigationIcon = {
                     if (current == null) {
-                        IconButton(onClick = { nav.popBackStack() }) {
+                        // Przez dispatcher, żeby ekrany mogły przechwycić „Wstecz” (np. niezapisane zmiany).
+                        IconButton(onClick = { backDispatcher?.onBackPressed() ?: nav.popBackStack() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Wstecz")
                         }
                     }
@@ -114,7 +138,7 @@ fun FoodAppNavHost(container: AppContainer) {
                 })
                 LibraryScreen(
                     viewModel = vm,
-                    onOpenRecipe = { nav.navigate(Routes.detail(it)) },
+                    onOpenRecipe = { id, isDraft -> nav.navigate(if (isDraft) Routes.editor(id) else Routes.detail(id)) },
                     onAddRecipe = { nav.navigate(Routes.ADD) },
                 )
             }
@@ -123,13 +147,14 @@ fun FoodAppNavHost(container: AppContainer) {
                 val vm: DetailViewModel = viewModel(key = "detail-$id", factory = viewModelFactory {
                     initializer { DetailViewModel(id, container.recipes) }
                 })
-                DetailScreen(vm)
+                DetailScreen(vm, container.photos, onEdit = { nav.navigate(Routes.editor(id)) })
+            }
+            composable(Routes.EDITOR_NEW) { EditorRoute(null, container, nav) }
+            composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                EditorRoute(entry.arguments?.getString("id"), container, nav)
             }
             composable(Routes.ADD) {
-                PlannedScreen(
-                    "Dodaj przepis", "v0.1 (krok 2) i v0.2",
-                    "Najpierw ręczne wpisywanie z edytorem szkicu. Potem link, „Udostępnij”, rolki z Instagrama, tekst i zdjęcie z OCR.",
-                )
+                AddScreen(onManual = { nav.navigate(Routes.EDITOR_NEW) })
             }
             composable(Routes.COLLECTIONS) {
                 PlannedScreen("Kolekcje", "v0.3", "Zestawy przepisów na okazję, np. „Boże Narodzenie”. Niezależne od kategorii i etykiet.")
@@ -140,4 +165,17 @@ fun FoodAppNavHost(container: AppContainer) {
             composable(Routes.ACCOUNT) { AccountScreen(container) }
         }
     }
+}
+
+@Composable
+private fun EditorRoute(recipeId: String?, container: AppContainer, nav: NavHostController) {
+    val vm: EditorViewModel = viewModel(key = "editor-${recipeId ?: "new"}", factory = viewModelFactory {
+        initializer { EditorViewModel(recipeId, container.recipes, container.categories, container.tags, container.photos) }
+    })
+    EditorScreen(
+        viewModel = vm,
+        onApproved = { id -> nav.openDetailReplacing(id) },
+        onOpenRecipe = { id -> nav.openDetailReplacing(id) },
+        onClose = { nav.popBackStack() },
+    )
 }

@@ -89,7 +89,13 @@ Te reguły są czystym Kotlinem w `domain/` — łatwe do testowania bez Android
 
 ## 7. Plan v0.1
 
-1. Szkielet: motyw, nawigacja, baza, atrapa konta, biblioteka (lista + wyszukiwanie + filtry). ← ten commit
-2. Edytor przepisu (ręczne dodawanie, autozapis szkicu, wiele kategorii, etykiety, zdjęcie z galerii).
-3. Szczegóły przepisu (oryginalny zapis składników, źródło, informacje dodatkowe).
-4. Testy reguł domenowych.
+1. ✅ Szkielet: motyw, nawigacja, baza, atrapa konta, biblioteka (lista + wyszukiwanie + filtry).
+2. ✅ Usuwanie (długie przytrzymanie, wiele naraz, „Cofnij”), kontrola duplikatów po nazwie.
+3. ✅ Edytor przepisu: ręczne dodawanie, autozapis szkicu, parser składników („2 łyżki oliwy”, wklejanie listy),
+   „bez ilości”, ręczna korekta, wiele kategorii (także nowe), etykiety, zdjęcie z galerii (Photo Picker),
+   zatwierdzanie z kontrolą kompletności i duplikatów, edycja zatwierdzonych przepisów.
+4. ✅ Szczegóły przepisu (oryginalny zapis składników, źródło, informacje dodatkowe, zdjęcie).
+5. ✅ Testy reguł domenowych (parser, lista zakupów, kompletność, duplikaty).
+
+Znane uproszczenia v0.1: zdjęcie tylko z galerii (aparat — v0.2), grupy składników zachowywane, ale nieedytowalne,
+stare pliki zdjęć nie są jeszcze sprzątane po podmianie.

@@ -29,6 +29,7 @@ data class RecipeCardUi(
     val meta: String,
     val tags: List<String>,
     val badges: List<BadgeUi>,
+    val isDraft: Boolean = false,
 )
 
 data class LibraryFilters(
@@ -145,6 +146,7 @@ class LibraryViewModel(
             meta = listOf(categoryText, sourceLabel(r.sourceType)).joinToString(" · "),
             tags = s.tags.map { it.name },
             badges = badges,
+            isDraft = r.status == RecipeStatus.DRAFT,
         )
     }
 }

@@ -21,6 +21,13 @@ interface RecipeDao {
     @Query("SELECT COUNT(*) FROM recipe WHERE deletedAt IS NULL")
     suspend fun count(): Int
 
+    @Query("SELECT * FROM recipe WHERE id = :id")
+    suspend fun getRecipe(id: String): RecipeEntity?
+
+    @Transaction
+    @Query("SELECT * FROM recipe WHERE id = :id")
+    suspend fun getDetails(id: String): RecipeDetails?
+
     @Upsert
     suspend fun upsertRecipe(recipe: RecipeEntity)
 

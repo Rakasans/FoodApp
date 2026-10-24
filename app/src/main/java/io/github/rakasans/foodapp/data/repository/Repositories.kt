@@ -9,6 +9,12 @@ import io.github.rakasans.foodapp.data.local.FoodDatabase
 import io.github.rakasans.foodapp.data.local.RecipeDetails
 import io.github.rakasans.foodapp.data.local.RecipeSummary
 import io.github.rakasans.foodapp.data.local.TagEntity
+import io.github.rakasans.foodapp.data.local.IngredientEntity
+import io.github.rakasans.foodapp.data.local.RecipeCategoryCrossRef
+import io.github.rakasans.foodapp.data.local.RecipeEntity
+import io.github.rakasans.foodapp.data.local.RecipeStatus
+import io.github.rakasans.foodapp.data.local.RecipeTagCrossRef
+import io.github.rakasans.foodapp.data.local.StepEntity
 import io.github.rakasans.foodapp.domain.DuplicateRules
 import io.github.rakasans.foodapp.domain.ExistingRecipe
 import io.github.rakasans.foodapp.domain.normalizeName
@@ -78,6 +84,63 @@ class RecipeRepository(
     fun observeSummaries(): Flow<List<RecipeSummary>> = db.recipeDao().observeSummaries()
 
     fun observeDetails(id: String): Flow<RecipeDetails?> = db.recipeDao().observeDetails(id)
+
+    suspend fun loadDraft(id: String): RecipeDraft? = db.recipeDao().getDetails(id)?.let(RecipeDraft::from)
+
+    /**
+     * Zapisuje przepis z edytora w jednej transakcji. Pola spoza edytora (materiał źródłowy,
+     * wartości odżywcze, alergeny, data utworzenia) zostają bez zmian.
+     */
+    suspend fun saveDraft(d: RecipeDraft, status: RecipeStatus) {
+        val now = clock.now()
+        val owner = auth.currentUser.value.id
+        db.withTransaction {
+            val dao = db.recipeDao()
+            val existing = dao.getRecipe(d.id)
+            val base = existing ?: RecipeEntity(
+                id = d.id, ownerId = owner, status = status, name = d.name,
+                createdAt = now, updatedAt = now,
+            )
+            dao.upsertRecipe(
+                base.copy(
+                    status = status,
+                    name = d.name.trim(),
+                    servings = d.servings,
+                    prepTime = d.prepTime.trim().ifBlank { null },
+                    cookTime = d.cookTime.trim().ifBlank { null },
+                    notes = d.notes.trim().ifBlank { null },
+                    photoUri = d.photoPath,
+                    sourceType = d.sourceType,
+                    sourceUrl = d.sourceUrl,
+                    sourceAuthor = d.sourceAuthor,
+                    updatedAt = now,
+                    deletedAt = null,
+                )
+            )
+            dao.deleteIngredients(d.id)
+            dao.upsertIngredients(
+                d.ingredients.filter { it.rawText.isNotBlank() }.mapIndexed { index, i ->
+                    IngredientEntity(
+                        id = i.id, recipeId = d.id, position = index, groupName = i.groupName,
+                        rawText = i.rawText.trim(), name = i.name.trim().ifBlank { i.rawText.trim() },
+                        quantity = if (i.noQuantity) null else i.quantity,
+                        unit = i.unit?.trim()?.ifBlank { null },
+                        noQuantity = i.noQuantity, unitInferred = i.unitInferred,
+                    )
+                }
+            )
+            dao.deleteSteps(d.id)
+            dao.upsertSteps(
+                d.steps.filter { it.text.isNotBlank() }.mapIndexed { index, s ->
+                    StepEntity(id = s.id, recipeId = d.id, position = index, text = s.text.trim())
+                }
+            )
+            dao.clearCategories(d.id)
+            dao.addCategories(d.categoryIds.map { RecipeCategoryCrossRef(d.id, it) })
+            dao.clearTags(d.id)
+            dao.addTags(d.tagNames.distinctBy { it.lowercase() }.map { RecipeTagCrossRef(d.id, tags.getOrCreate(it).id) })
+        }
+    }
 
     /** Miękkie usuwanie — rekord zostaje z deletedAt, można go przywrócić („Cofnij”). */
     suspend fun softDelete(ids: List<String>) = db.recipeDao().softDelete(ids, clock.now())

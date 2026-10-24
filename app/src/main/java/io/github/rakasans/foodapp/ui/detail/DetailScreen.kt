@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,7 +30,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.rakasans.foodapp.data.local.InfoOrigin
 import io.github.rakasans.foodapp.data.local.RecipeDetails
+import io.github.rakasans.foodapp.data.repository.PhotoStore
 import io.github.rakasans.foodapp.data.repository.RecipeRepository
+import io.github.rakasans.foodapp.ui.common.RecipePhoto
 import io.github.rakasans.foodapp.domain.IngredientFacts
 import io.github.rakasans.foodapp.domain.RecipeRules
 import io.github.rakasans.foodapp.domain.formatQuantity
@@ -49,7 +53,7 @@ class DetailViewModel(recipeId: String, repo: RecipeRepository) : ViewModel() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DetailScreen(viewModel: DetailViewModel) {
+fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> Unit) {
     val d by viewModel.details.collectAsStateWithLifecycle()
     val details = d ?: return
     val r = details.recipe
@@ -63,6 +67,9 @@ fun DetailScreen(viewModel: DetailViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        r.photoUri?.let { path ->
+            RecipePhoto(path, photos, "Zdjęcie: ${r.name}", Modifier.fillMaxWidth().height(200.dp))
+        }
         Text(r.name, style = MaterialTheme.typography.headlineSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             details.categories.forEach { Badge(BadgeUi(it.name, BadgeKind.OK)) }
@@ -148,6 +155,7 @@ fun DetailScreen(viewModel: DetailViewModel) {
                 else "Brak informacji o alergenach. To nie oznacza, że przepis ich nie zawiera."
             )
         }
+        OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Edytuj przepis") }
         Box(Modifier.padding(bottom = 24.dp))
     }
 }
