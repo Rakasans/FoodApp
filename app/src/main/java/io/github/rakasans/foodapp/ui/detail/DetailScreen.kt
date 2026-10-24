@@ -1,5 +1,10 @@
 package io.github.rakasans.foodapp.ui.detail
 
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.selection.SelectionContainer
 import io.github.rakasans.foodapp.ui.common.OpenOriginalButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -140,6 +145,18 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OpenOriginalButton(r.sourceUrl)
+            // Oryginalny tekst (opis rolki, wklejony tekst, OCR) — tylko do odczytu.
+            r.materialText?.takeIf { it.isNotBlank() }?.let { original ->
+                var showOriginal by rememberSaveable { mutableStateOf(false) }
+                TextButton(onClick = { showOriginal = !showOriginal }) {
+                    Text(if (showOriginal) "Ukryj oryginał" else "Pokaż oryginał")
+                }
+                if (showOriginal) {
+                    SelectionContainer {
+                        Text(original, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
         }
 
         HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outlineVariant)

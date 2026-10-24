@@ -262,8 +262,10 @@ fun EditorScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        // Oryginał w edytorze tylko przy sprawdzaniu szkicu z importu (do porównania).
+        // Zatwierdzonego przepisu oryginał jest w trybie przeglądania, w sekcji „Źródło”.
         val original = d.materialText
-        if (!original.isNullOrBlank()) {
+        if (!original.isNullOrBlank() && !state.editingApproved) {
             var showOriginal by rememberSaveable { mutableStateOf(false) }
             Card(
                 shape = RoundedCornerShape(16.dp),
