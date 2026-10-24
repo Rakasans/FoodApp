@@ -12,27 +12,39 @@ data class ParsedRecipeText(
 
 /**
  * Regułowe rozpoznawanie przepisu z tekstu: wklejonego, z OCR albo z opisu rolki.
- * Rozpoznaje nagłówki („Składniki”, „Przygotowanie”…), grupy („Ciasto:”), numerację kroków,
- * liczbę porcji. Linie, których nie umie przypisać, pomija — oryginalny tekst zostaje przy przepisie.
+ *
+ * - nagłówki („Składniki”, „Potrzebujemy”, „Przygotowanie”…) i grupy („Sos:”),
+ * - kroki numerowane albo akapity; linie łamane przez OCR / szerokość ekranu są sklejane w jeden krok,
+ * - opis bez nagłówka kroków: długi akapit po liście składników zaczyna kroki,
+ * - wstęp przed listą składników i pożegnania („Smacznego”) są pomijane.
+ * Linie, których nie umie przypisać, pomija — oryginalny tekst zostaje przy przepisie.
  */
 object RecipeTextParser {
 
-    private val INGREDIENT_HEADERS = Regex("""^(składniki|skladniki|ingredients|potrzebne będą|potrzebujesz)\b.*""", RegexOption.IGNORE_CASE)
+    private val INGREDIENT_HEADERS = Regex(
+        """^(składniki|skladniki|ingredients|potrzebne będą|potrzebne beda|potrzebujesz|potrzebujemy|będziesz potrzebować|lista zakupów)\b.*""",
+        RegexOption.IGNORE_CASE,
+    )
     private val STEP_HEADERS = Regex(
-        """^(przygotowanie|sposób przygotowania|sposob przygotowania|wykonanie|przepis|instrukcja|kroki|jak zrobić|jak przygotować|method|instructions)\b.*""",
+        """^(przygotowanie|sposób przygotowania|sposob przygotowania|sposób wykonania|wykonanie|instrukcja|kroki|jak zrobić|jak przygotować|method|instructions)\b.*""",
         RegexOption.IGNORE_CASE,
     )
     private val SERVINGS = listOf(
-        Regex("""(?:porcj\w*|liczba porcji|dla)\s*[:\-]?\s*(\d{1,2})""", RegexOption.IGNORE_CASE),
-        Regex("""(\d{1,2})\s*(?:porcj\w*|osób|osoby|os\.)""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:porcj\w*|liczba porcji|dla)\s*[:\-]?\s*(\d{1,2})\b""", RegexOption.IGNORE_CASE),
+        Regex("""\b(\d{1,2})\s*(?:porcj\w*|osób|osoby|os\.)""", RegexOption.IGNORE_CASE),
     )
     private val STEP_NUMBER = Regex("""^(?:krok\s*)?(\d{1,2})\s*[.):\-]\s*(.+)$""", RegexOption.IGNORE_CASE)
     private val BULLET = Regex("""^[-•*–·▪✓✔]\s*""")
     private val HASHTAGS_ONLY = Regex("""^(#\S+\s*)+$""")
     private val META_LINE = Regex("""^(porcj|czas|kcal|liczba porcji)""", RegexOption.IGNORE_CASE)
+    private val SIGN_OFF = Regex("""\s*\b(smacznego|enjoy|bon app[ée]tit)\b[!.\s]*$""", RegexOption.IGNORE_CASE)
+
+    /** Długość, powyżej której linia bez ilości to już opis przygotowania, a nie składnik. */
+    private const val PROSE_LENGTH = 70
 
     fun parse(text: String): ParsedRecipeText {
-        val lines = text.lines().map { cleanLine(it) }.filter { it.isNotEmpty() && !HASHTAGS_ONLY.matches(it) }
+        val lines = joinHyphenated(text.lines().map { cleanLine(it) })
+            .filter { it.isNotEmpty() && !HASHTAGS_ONLY.matches(it) }
         if (lines.isEmpty()) return ParsedRecipeText("", null, emptyList(), emptyList())
 
         val servings = SERVINGS.firstNotNullOfOrNull { it.find(text)?.groupValues?.get(1)?.toIntOrNull() }?.takeIf { it > 0 }
@@ -42,13 +54,12 @@ object RecipeTextParser {
         val name = if (nameIndex >= 0 && looksLikeTitle(lines[nameIndex])) lines[nameIndex] else ""
 
         val ingredients = mutableListOf<ParsedIngredientLine>()
-        val steps = mutableListOf<String>()
+        val steps = StepCollector()
         var mode = Mode.NONE
         var group: String? = null
 
-        lines.forEachIndexed { index, rawLine ->
+        lines.forEachIndexed { index, line ->
             if (index == nameIndex && name.isNotEmpty()) return@forEachIndexed
-            val line = rawLine
             when {
                 INGREDIENT_HEADERS.matches(line) -> { mode = Mode.INGREDIENTS; group = null; return@forEachIndexed }
                 STEP_HEADERS.matches(line) -> { mode = Mode.STEPS; return@forEachIndexed }
@@ -58,46 +69,98 @@ object RecipeTextParser {
                 Mode.INGREDIENTS -> {
                     val stepMatch = STEP_NUMBER.matchEntire(line)
                     when {
-                        // „Ciasto:” — nagłówek grupy składników
+                        // „Sos:” — nagłówek grupy składników
                         line.endsWith(":") && line.length <= 40 && IngredientParser.parse(line).quantity == null ->
                             group = line.removeSuffix(":").trim()
-                        // numerowane długie zdanie w sekcji składników = kroki bez nagłówka
+                        // numerowane długie zdanie = kroki bez nagłówka
                         stepMatch != null && stepMatch.groupValues[2].length > 40 -> {
-                            mode = Mode.STEPS; steps += stepMatch.groupValues[2].trim()
+                            mode = Mode.STEPS; steps.add(stepMatch.groupValues[2], numbered = true)
                         }
+                        // długi akapit bez ilości po liście składników = opis przygotowania
+                        isProse(line) -> { mode = Mode.STEPS; steps.add(line, numbered = false) }
                         else -> ingredients += ParsedIngredientLine(line.replace(BULLET, "").trim(), group)
                     }
                 }
                 Mode.STEPS -> {
                     val m = STEP_NUMBER.matchEntire(line)
-                    steps += (m?.groupValues?.get(2) ?: line).trim()
+                    if (m != null) steps.add(m.groupValues[2], numbered = true) else steps.add(line, numbered = false)
                 }
                 Mode.NONE -> if (!hasHeaders) {
                     // Bez nagłówków: numerowane linie to kroki, linie z ilością albo punktorem to składniki.
                     val m = STEP_NUMBER.matchEntire(line)
                     when {
-                        m != null && !looksLikeIngredient(m.groupValues[2]) -> steps += m.groupValues[2].trim()
+                        m != null && !looksLikeIngredient(m.groupValues[2]) -> steps.add(m.groupValues[2], numbered = true)
                         BULLET.containsMatchIn(line) || looksLikeIngredient(line) ->
                             ingredients += ParsedIngredientLine(line.replace(BULLET, "").trim())
-                        line.length > 60 -> steps += line
+                        steps.isNotEmpty() || line.length > 60 -> steps.add(line, numbered = false)
                     }
                 }
+                // z nagłówkami: tekst przed listą składników to wstęp — pomijamy
             }
         }
-        return ParsedRecipeText(name, servings, ingredients, steps)
+        return ParsedRecipeText(name, servings, ingredients, steps.result())
+    }
+
+    /**
+     * Składa kroki z linii. Linia nienumerowana dokleja się do poprzedniego kroku, jeśli ten nie skończył
+     * się kropką/wykrzyknikiem/pytajnikiem albo linia zaczyna się małą literą (łamanie wiersza w OCR).
+     */
+    private class StepCollector {
+        private val steps = mutableListOf<String>()
+        fun isNotEmpty() = steps.isNotEmpty()
+
+        fun add(raw: String, numbered: Boolean) {
+            val line = raw.trim()
+            if (line.isEmpty()) return
+            val last = steps.lastOrNull()
+            val continues = !numbered && last != null &&
+                (!last.trimEnd().endsWithAny('.', '!', '?') || line.first().isLowerCase())
+            if (continues) steps[steps.lastIndex] = "$last $line" else steps += line
+        }
+
+        fun result(): List<String> = steps
+            .map { it.replace(SIGN_OFF, "").trim() }
+            .filter { it.isNotEmpty() }
+
+        private fun String.endsWithAny(vararg chars: Char) = isNotEmpty() && last() in chars
     }
 
     private enum class Mode { NONE, INGREDIENTS, STEPS }
 
     private fun isHeader(line: String) = INGREDIENT_HEADERS.matches(line) || STEP_HEADERS.matches(line)
 
-    /** Tytuł: krótka linia bez ilości na początku. */
+    private fun isProse(line: String): Boolean {
+        if (line.length <= PROSE_LENGTH) return false
+        val p = IngredientParser.parse(line)
+        return p.quantity == null && !p.isRange
+    }
+
+    /** Tytuł: krótka linia bez ilości, nie zakończona kropką (zdania wstępu kończą się kropką). */
     private fun looksLikeTitle(line: String): Boolean =
-        line.length <= 80 && IngredientParser.parse(line).quantity == null && !line.endsWith(":")
+        line.length <= 80 &&
+            line.split(' ').size <= 12 &&
+            IngredientParser.parse(line).quantity == null &&
+            !line.endsWith(":") && !line.endsWith(".") && !line.endsWith("!") && !line.endsWith("?")
 
     private fun looksLikeIngredient(line: String): Boolean {
         val p = IngredientParser.parse(line)
         return p.quantity != null && line.length <= 60 || p.isRange
+    }
+
+    /** OCR dzieli wyrazy na końcu linii („odrobi-” + „nę”) — sklejamy je. */
+    private fun joinHyphenated(lines: List<String>): List<String> {
+        val out = mutableListOf<String>()
+        for (line in lines) {
+            val prev = out.lastOrNull()
+            if (prev != null && prev.length > 2 && prev.endsWith("-") && prev[prev.length - 2].isLetter() &&
+                line.isNotEmpty() && line.first().isLowerCase()
+            ) {
+                out[out.lastIndex] = prev.dropLast(1) + line
+            } else {
+                out += line
+            }
+        }
+        return out
     }
 
     /** Usuwa emoji i ozdobniki z początku i końca linii (opisy z Instagrama). */

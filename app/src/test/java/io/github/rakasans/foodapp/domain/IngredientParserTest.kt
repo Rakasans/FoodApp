@@ -69,6 +69,18 @@ class IngredientParserTest {
     }
 
     @Test
+    fun `okolo i ok przed iloscia`() {
+        val r = p("około 300ml ciepłej wody")
+        assertEquals(300.0, r.quantity!!, 1e-9)
+        assertEquals("ml", r.unit)
+        assertEquals("ciepłej wody", r.name)
+        assertEquals(2.0, p("ok. 2 łyżki cukru").quantity!!, 1e-9)
+        assertEquals("g", p("~200 g mąki").unit)
+        // „ok” tylko jako osobne słowo — nie obcina nazw typu „okra”
+        assertEquals("okra", p("okra").name)
+    }
+
+    @Test
     fun `jednostka z kropka`() {
         assertEquals("szt.", p("3 szt. jabłek").unit)
         assertEquals("opak.", p("1 op. drożdży").unit)

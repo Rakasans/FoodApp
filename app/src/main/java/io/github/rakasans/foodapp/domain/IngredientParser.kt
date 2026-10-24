@@ -52,8 +52,11 @@ object IngredientParser {
     private val FRACTION = Regex("""^(\d+)\s*/\s*(\d+)\s*(.*)$""")
     private val DECIMAL = Regex("""^($NUM)\s*(.*)$""")
 
+    /** „około 300 ml”, „ok. 2 łyżki”, „~200 g” — przybliżenie z oryginału zostaje w rawText. */
+    private val APPROX = Regex("""^(około|okolo|ok\.|ok(?=\s)|ca\.|circa|mniej więcej|~)\s*""", RegexOption.IGNORE_CASE)
+
     fun parse(raw: String): ParsedIngredient {
-        val text = raw.trim().removePrefix("-").removePrefix("•").removePrefix("*").trim()
+        val text = raw.trim().removePrefix("-").removePrefix("•").removePrefix("*").trim().replace(APPROX, "")
         if (text.isEmpty()) return ParsedIngredient(name = "", quantity = null, unit = null)
 
         RANGE.matchEntire(text)?.let { m ->
