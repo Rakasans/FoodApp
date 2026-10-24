@@ -39,7 +39,7 @@ class ReelImporter(
     suspend fun import(url: String, note: String? = null): Result {
         val online = connectivity.isOnline()
         val id = recipes.saveLinkMaterial(
-            url, note, instagram = true,
+            InstagramPage.canonicalUrl(url), note, instagram = true,
             processing = if (online) ProcessingState.RUNNING else ProcessingState.WAITING_NETWORK,
         )
         return if (online) process(id) else Result.Waiting(id)
@@ -89,7 +89,7 @@ class ReelImporter(
         var best: InstagramPost? = null
         attempts.forEachIndexed { index, (page, agent) ->
             val html = get(page, agent) ?: return@forEachIndexed
-            val post = InstagramPage.parse(html)
+            val post = InstagramPage.parse(html, code)
             val title = Regex("<title[^>]*>(.*?)</title>", RegexOption.DOT_MATCHES_ALL).find(html)?.groupValues?.get(1)?.trim()?.take(80)
             Log.d(
                 TAG,

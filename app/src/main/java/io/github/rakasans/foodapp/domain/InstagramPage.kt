@@ -10,7 +10,8 @@ data class InstagramPost(
 /**
  * Odczyt opisu, miniatury i autora z HTML publicznej strony Instagrama (strona „embed” albo zwykła).
  * Instagram nie publikuje stabilnego formatu, dlatego próbujemy kilku źródeł po kolei:
- * 1) JSON osadzony w stronie, 2) blok „Caption” strony embed, 3) metatagi og:*.
+ * 1) metatagi og:* — o ile dotyczą właśnie tej rolki (strona bywa profilem z opisami wielu rolek),
+ * 2) blok „Caption” strony embed, 3) JSON w stronie — tylko opis przypisany do kodu tej rolki.
  * Format może się zmienić bez ostrzeżenia — wtedy import przechodzi na zrzut ekranu.
  */
 object InstagramPage {
@@ -26,10 +27,22 @@ object InstagramPage {
 
     fun postUrl(shortcode: String) = "https://www.instagram.com/p/$shortcode/"
 
-    fun parse(html: String): InstagramPost {
-        val caption = captionFromJson(html) ?: captionFromEmbed(html) ?: captionFromMeta(html)
-        val image = imageFromMeta(html) ?: imageFromEmbed(html) ?: jsonString(html, "display_url") ?: jsonString(html, "thumbnail_src")
-        val author = jsonString(html, "username") ?: authorFromEmbed(html) ?: authorFromMeta(html)
+    /** Kanoniczny adres rolki — bez parametrów śledzących (?igsh=…) i nazwy profilu. */
+    fun canonicalUrl(url: String): String = shortcode(url)?.let { pageUrl(it) } ?: url.substringBefore('?')
+
+    /**
+     * @param shortcode kod rolki, o którą pytamy. Gdy podany, odrzucamy treści innych rolek z tej samej strony.
+     */
+    fun parse(html: String, shortcode: String? = null): InstagramPost {
+        val metaMatches = shortcode == null || metaIsAbout(html, shortcode)
+        val caption = (if (metaMatches) captionFromMeta(html) else null)
+            ?: captionFromEmbed(html)
+            ?: captionFromJson(html, shortcode)
+        val image = (if (metaMatches) imageFromMeta(html) else null) ?: imageFromEmbed(html)
+            ?: (if (shortcode == null) jsonString(html, "display_url") ?: jsonString(html, "thumbnail_src") else null)
+        val author = (if (metaMatches) authorFromMetaDescription(html) ?: authorFromMeta(html) else null)
+            ?: authorFromEmbed(html)
+            ?: (if (shortcode == null) jsonString(html, "username") else null)
         return InstagramPost(
             caption = caption?.trim()?.takeIf { it.isNotEmpty() },
             imageUrl = image?.takeIf { it.startsWith("http") },
@@ -39,11 +52,33 @@ object InstagramPage {
 
     // ---------- 1) JSON w stronie
 
-    private fun captionFromJson(html: String): String? {
+    /** Czy metatagi strony (og:url, kanoniczny adres, al:android:url) dotyczą tej rolki. */
+    private fun metaIsAbout(html: String, shortcode: String): Boolean {
+        val urls = listOfNotNull(
+            meta(html, "og:url"), meta(html, "al:android:url"),
+            Regex("""<link[^>]+rel="canonical"[^>]*href="([^"]+)"""").find(html)?.groupValues?.get(1),
+        )
+        return urls.any { shortcode(it) == shortcode }
+    }
+
+    /**
+     * Opis z JSON. Bez kodu rolki — pierwszy znaleziony (strony z jedną rolką).
+     * Z kodem — tylko opis, po którym najbliższy `"code"` to kod tej rolki (na stronie profilu każda rolka
+     * ma obiekt z `caption`, a po nim swój `code`).
+     */
+    private fun captionFromJson(html: String, shortcode: String? = null): String? {
+        val captionRx = Regex(""""caption"\s*:\s*\{[^{}]*?"text"\s*:\s*"((?:[^"\\]|\\.)*)"""")
+        if (shortcode != null) {
+            val codeRx = Regex(""""code"\s*:\s*"([A-Za-z0-9_-]+)"""")
+            captionRx.findAll(html).forEach { m ->
+                val next = codeRx.find(html, m.range.last)
+                if (next?.groupValues?.get(1) == shortcode) return unescapeJson(m.groupValues[1])
+            }
+            return null
+        }
         Regex(""""edge_media_to_caption"\s*:\s*\{\s*"edges"\s*:\s*\[\s*\{\s*"node"\s*:\s*\{\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"""")
             .find(html)?.let { return unescapeJson(it.groupValues[1]) }
-        Regex(""""caption"\s*:\s*\{[^{}]*?"text"\s*:\s*"((?:[^"\\]|\\.)*)"""")
-            .find(html)?.let { return unescapeJson(it.groupValues[1]) }
+        captionRx.find(html)?.let { return unescapeJson(it.groupValues[1]) }
         return null
     }
 
@@ -83,6 +118,12 @@ object InstagramPage {
     }
 
     private fun imageFromMeta(html: String): String? = meta(html, "og:image")
+
+    /** og:description: „1,229 likes, 44 comments - gawe_l – October 24, 2026: …” → gawe_l */
+    private fun authorFromMetaDescription(html: String): String? {
+        val d = meta(html, "og:description") ?: return null
+        return Regex("""comments?\s*-\s*([A-Za-z0-9._]+)\s+(?:–|-|on|w dniu)""").find(d)?.groupValues?.get(1)
+    }
 
     private fun authorFromMeta(html: String): String? =
         meta(html, "og:title")?.let { Regex("""^(.*?)\s+(?:on|na)\s+Instagram""", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }

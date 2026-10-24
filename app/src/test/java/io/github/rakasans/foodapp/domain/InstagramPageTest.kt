@@ -44,7 +44,8 @@ class InstagramPageTest {
         val post = InstagramPage.parse(html)
         assertEquals("Zupa krem\n1 kg dyni", post.caption)
         assertEquals("https://cdn.example/og.jpg", post.imageUrl)
-        assertEquals("Kuchnia Demo", post.author)
+        // nazwa konta z og:description ma pierwszeństwo przed nazwą wyświetlaną z og:title
+        assertEquals("kuchnia_demo", post.author)
     }
 
     @Test
@@ -52,5 +53,38 @@ class InstagramPageTest {
         val post = InstagramPage.parse("<html><body>Zaloguj się</body></html>")
         assertEquals(null, post.caption)
         assertEquals(null, post.imageUrl)
+    }
+
+    @Test
+    fun `strona profilu z wieloma rolkami - bierzemy opis tej rolki z og`() {
+        // Tak wyglądała prawdziwa odpowiedź: JSON z opisami kilku rolek profilu (pierwsza to inna rolka),
+        // a metatagi og:* dotyczą rolki, o którą pytamy.
+        val html = """
+            <link rel="canonical" href="https://www.instagram.com/reel/KLUSKI1/" />
+            <meta property="og:url" content="https://www.instagram.com/autor_demo/reel/KLUSKI1/" />
+            <meta property="og:description" content="1,229 likes, 44 comments - autor_demo – October 24, 2026: &quot;Kluski chlebowe&#10;Potrzebujemy:&#10;200 ml mleka&#10;&#10;#kluski&quot;. " />
+            <meta property="og:image" content="https://cdn.example/kluski.jpg" />
+            <script>{"caption":{"text":"O kurka! Inny przepis"},"code":"KURKI22"},{"caption":{"text":"Kluski z JSON"},"code":"KLUSKI1"}</script>
+        """.trimIndent()
+        val post = InstagramPage.parse(html, "KLUSKI1")
+        assertEquals("Kluski chlebowe\nPotrzebujemy:\n200 ml mleka\n\n#kluski", post.caption)
+        assertEquals("https://cdn.example/kluski.jpg", post.imageUrl)
+        assertEquals("autor_demo", post.author)
+    }
+
+    @Test
+    fun `bez metatagow - opis z JSON przypisany do kodu rolki`() {
+        val html = """{"caption":{"text":"O kurka! Inny przepis"},"code":"KURKI22"},{"caption":{"text":"Kluski z JSON"},"code":"KLUSKI1"}"""
+        assertEquals("Kluski z JSON", InstagramPage.parse(html, "KLUSKI1").caption)
+        // obcej rolki nie bierzemy
+        assertEquals(null, InstagramPage.parse(html, "INNA999").caption)
+    }
+
+    @Test
+    fun `adres kanoniczny bez parametrow sledzacych`() {
+        assertEquals(
+            "https://www.instagram.com/reel/De3nC8wgGN0/",
+            InstagramPage.canonicalUrl("https://www.instagram.com/reel/De3nC8wgGN0/?igsh=MWQ1ZGUxMzBkMA=="),
+        )
     }
 }

@@ -8,7 +8,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Treść przekazana systemowym „Udostępnij” (tekst/link albo obraz). */
-data class SharedContent(val text: String? = null, val imageUri: Uri? = null)
+data class SharedContent(
+    val text: String? = null,
+    val imageUri: Uri? = null,
+    /** Unikalny znacznik udostępnienia — dwa udostępnienia tego samego linku to dwa osobne zdarzenia. */
+    val token: String = System.nanoTime().toString(),
+)
 
 /** Skrzynka na treść z „Udostępnij”: aktywność ją wypełnia, nawigacja odbiera i kieruje do importu. */
 class ShareInbox {

@@ -76,14 +76,15 @@ private object Routes {
     const val MATERIAL = "material/{id}"
     fun detail(id: String) = "recipe/$id"
     fun editor(id: String) = "editor/$id"
-    fun importLink(share: Boolean = false) = "import/link?share=$share"
-    fun importText(share: Boolean = false) = "import/text?share=$share"
-    fun importOcr(mode: OcrMode, target: String? = null, share: Boolean = false) =
+    /** `share` = znacznik konkretnego udostępnienia (pusty = wejście ręczne). Każde udostępnienie to nowy ekran. */
+    fun importLink(share: String = "") = "import/link?share=$share"
+    fun importText(share: String = "") = "import/text?share=$share"
+    fun importOcr(mode: OcrMode, target: String? = null, share: String = "") =
         "import/ocr/${mode.name}?target=${target.orEmpty()}&share=$share"
     fun material(id: String) = "material/$id"
 }
 
-private val shareArg = navArgument("share") { type = NavType.BoolType; defaultValue = false }
+private val shareArg = navArgument("share") { type = NavType.StringType; defaultValue = "" }
 
 /** Szkic z importu: edytor zamiast ekranu importu (wstecz wraca do biblioteki). */
 private fun NavHostController.openEditorReplacing(id: String) {
@@ -135,11 +136,11 @@ fun FoodAppNavHost(container: AppContainer) {
     LaunchedEffect(shared) {
         val s = shared ?: return@LaunchedEffect
         val target = when {
-            s.imageUri != null -> Routes.importOcr(OcrMode.PHOTO, share = true)
-            s.text != null && extractUrl(s.text) != null -> Routes.importLink(share = true)
-            else -> Routes.importText(share = true)
+            s.imageUri != null -> Routes.importOcr(OcrMode.PHOTO, share = s.token)
+            s.text != null && extractUrl(s.text) != null -> Routes.importLink(share = s.token)
+            else -> Routes.importText(share = s.token)
         }
-        nav.navigate(target) { launchSingleTop = true }
+        nav.navigate(target) { popUpTo(Routes.LIBRARY) }
     }
 
     Scaffold(
@@ -224,8 +225,9 @@ fun FoodAppNavHost(container: AppContainer) {
                 )
             }
             composable(Routes.IMPORT_LINK, arguments = listOf(shareArg)) { entry ->
-                val fromShare = entry.arguments?.getBoolean("share") == true
-                val sharedText = remember { if (fromShare) container.shareInbox.take()?.text else null }
+                val shareToken = entry.arguments?.getString("share").orEmpty()
+                val fromShare = shareToken.isNotEmpty()
+                val sharedText = remember(shareToken) { if (fromShare) container.shareInbox.take()?.text else null }
                 LinkImportScreen(
                     container = container,
                     initialText = sharedText,
@@ -238,8 +240,9 @@ fun FoodAppNavHost(container: AppContainer) {
                 )
             }
             composable(Routes.IMPORT_TEXT, arguments = listOf(shareArg)) { entry ->
-                val fromShare = entry.arguments?.getBoolean("share") == true
-                val sharedText = remember { if (fromShare) container.shareInbox.take()?.text else null }
+                val shareToken = entry.arguments?.getString("share").orEmpty()
+                val fromShare = shareToken.isNotEmpty()
+                val sharedText = remember(shareToken) { if (fromShare) container.shareInbox.take()?.text else null }
                 TextImportScreen(container, sharedText, fromShare, onOpenEditor = { nav.openEditorReplacing(it) })
             }
             composable(
@@ -252,8 +255,9 @@ fun FoodAppNavHost(container: AppContainer) {
             ) { entry ->
                 val mode = OcrMode.valueOf(entry.arguments?.getString("mode") ?: OcrMode.PHOTO.name)
                 val target = entry.arguments?.getString("target")?.ifBlank { null }
-                val fromShare = entry.arguments?.getBoolean("share") == true
-                val sharedImage = remember { if (fromShare) container.shareInbox.take()?.imageUri else null }
+                val shareToken = entry.arguments?.getString("share").orEmpty()
+                val fromShare = shareToken.isNotEmpty()
+                val sharedImage = remember(shareToken) { if (fromShare) container.shareInbox.take()?.imageUri else null }
                 OcrImportScreen(container, mode, target, sharedImage, onOpenEditor = { nav.openEditorReplacing(it) })
             }
             composable(Routes.MATERIAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
