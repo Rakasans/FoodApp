@@ -245,6 +245,7 @@ private fun RecipeCard(card: RecipeCardUi, selected: Boolean, onClick: () -> Uni
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                 Text(card.name, style = MaterialTheme.typography.titleMedium)
                 Text(card.meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(card.updatedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (card.tags.isNotEmpty()) {
                     Text(card.tags.joinToString("  ") { "#$it" }, style = MaterialTheme.typography.bodySmall)
                 }

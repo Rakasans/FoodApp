@@ -125,8 +125,13 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
         SurfaceCard {
             SectionLabel("Źródło")
             Text(sourceLabel(r.sourceType), fontWeight = FontWeight.Bold)
-            Text("Autor: ${r.sourceAuthor ?: "nie podano"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(r.sourceUrl ?: "Brak linku (źródło bez adresu).", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Autor i link pokazujemy tylko, gdy źródło je podało (przepis własny ich nie ma).
+            r.sourceAuthor?.takeIf { it.isNotBlank() }?.let {
+                Text("Autor: $it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            r.sourceUrl?.takeIf { it.isNotBlank() }?.let {
+                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
         HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outlineVariant)

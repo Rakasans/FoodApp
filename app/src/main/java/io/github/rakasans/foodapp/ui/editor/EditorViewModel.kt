@@ -33,6 +33,8 @@ sealed interface EditorDialog {
     data class Duplicate(val existing: List<ExistingRecipe>) : EditorDialog
     data object DiscardChanges : EditorDialog
     data object DiscardDraft : EditorDialog
+    /** Wyjście z edytora, gdy szkic ma nazwę istniejącego przepisu. */
+    data class DuplicateOnExit(val existing: List<ExistingRecipe>) : EditorDialog
 }
 
 sealed interface EditorEvent {
@@ -265,11 +267,23 @@ class EditorViewModel(
         val s = _state.value
         if (s.editingApproved && s.dirty) {
             _state.update { it.copy(dialog = EditorDialog.DiscardChanges) }
+        } else if (!s.editingApproved && s.draft.hasContent && s.sameName.isNotEmpty()) {
+            // Nie zostawiamy po cichu drugiego przepisu o tej samej nazwie — decyduje użytkownik.
+            _state.update { it.copy(dialog = EditorDialog.DuplicateOnExit(s.sameName)) }
         } else {
             viewModelScope.launch {
                 flush()
                 _events.send(EditorEvent.Close)
             }
+        }
+    }
+
+    /** Świadomie zostawiamy szkic mimo tej samej nazwy. */
+    fun keepDraftAndClose() {
+        dismissDialog()
+        viewModelScope.launch {
+            flush()
+            _events.send(EditorEvent.Close)
         }
     }
 

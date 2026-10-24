@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -88,7 +89,8 @@ fun EditorScreen(
     val d = state.draft
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        // imePadding: przy wysuniętej klawiaturze lista się skraca i aktywne pole da się przewinąć nad klawiaturę.
+        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -379,6 +381,24 @@ private fun EditorDialogs(dialog: EditorDialog?, vm: EditorViewModel) {
             text = { Text("Zmiany w przepisie nie zostały zapisane.") },
             confirmButton = { TextButton(onClick = vm::confirmDiscardChanges) { Text("Odrzuć zmiany", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = vm::dismissDialog) { Text("Wróć do edycji") } },
+        )
+        is EditorDialog.DuplicateOnExit -> AlertDialog(
+            onDismissRequest = vm::dismissDialog,
+            title = { Text("Taki przepis już istnieje") },
+            text = {
+                Text(
+                    "W bibliotece jest już „${dialog.existing.first().name}”. " +
+                        "Jeśli wyjdziesz, ten szkic zostanie zapisany pod tą samą nazwą. Co chcesz zrobić?"
+                )
+            },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = vm::confirmDiscardDraft) { Text("Odrzuć szkic", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { vm.openExisting(dialog.existing.first().id) }) { Text("Otwórz istniejący (szkic zostaje)") }
+                    TextButton(onClick = vm::keepDraftAndClose) { Text("Zachowaj szkic") }
+                    TextButton(onClick = vm::dismissDialog) { Text("Wróć do edycji") }
+                }
+            },
         )
         EditorDialog.DiscardDraft -> AlertDialog(
             onDismissRequest = vm::dismissDialog,

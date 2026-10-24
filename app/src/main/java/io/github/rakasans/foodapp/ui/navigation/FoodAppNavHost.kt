@@ -1,6 +1,8 @@
 package io.github.rakasans.foodapp.ui.navigation
 
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -80,7 +82,7 @@ private fun NavHostController.openDetailReplacing(id: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FoodAppNavHost(container: AppContainer) {
     val nav = rememberNavController()
@@ -113,7 +115,8 @@ fun FoodAppNavHost(container: AppContainer) {
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            // Dolny pasek tylko na ekranach głównych — w edytorze i szczegółach daje miejsce treści i klawiaturze.
+            if (current != null) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 topLevel.forEach { item ->
                     NavigationBarItem(
                         selected = route == item.route,
@@ -131,7 +134,12 @@ fun FoodAppNavHost(container: AppContainer) {
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = Routes.LIBRARY, modifier = Modifier.padding(padding)) {
+        NavHost(
+            nav,
+            startDestination = Routes.LIBRARY,
+            // consumeWindowInsets: ekrany z imePadding() nie dodadzą drugi raz paska systemowego.
+            modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+        ) {
             composable(Routes.LIBRARY) {
                 val vm: LibraryViewModel = viewModel(factory = viewModelFactory {
                     initializer { LibraryViewModel(container.recipes, container.categories, container.tags) }

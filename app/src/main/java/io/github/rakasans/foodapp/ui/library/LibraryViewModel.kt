@@ -13,6 +13,7 @@ import io.github.rakasans.foodapp.data.repository.RecipeRepository
 import io.github.rakasans.foodapp.data.repository.TagRepository
 import io.github.rakasans.foodapp.domain.IngredientFacts
 import io.github.rakasans.foodapp.domain.RecipeRules
+import io.github.rakasans.foodapp.domain.formatUpdated
 import io.github.rakasans.foodapp.ui.common.BadgeKind
 import io.github.rakasans.foodapp.ui.common.BadgeUi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ data class RecipeCardUi(
     val tags: List<String>,
     val badges: List<BadgeUi>,
     val isDraft: Boolean = false,
+    val updatedText: String = "",
 )
 
 data class LibraryFilters(
@@ -147,6 +149,7 @@ class LibraryViewModel(
             tags = s.tags.map { it.name },
             badges = badges,
             isDraft = r.status == RecipeStatus.DRAFT,
+            updatedText = "Zaktualizowano: " + formatUpdated(r.updatedAt, System.currentTimeMillis()),
         )
     }
 }
