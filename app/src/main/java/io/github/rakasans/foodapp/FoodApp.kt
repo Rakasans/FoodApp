@@ -14,6 +14,9 @@ import io.github.rakasans.foodapp.share.ShareInbox
 import io.github.rakasans.foodapp.core.Connectivity
 import io.github.rakasans.foodapp.data.instagram.ReelImporter
 import io.github.rakasans.foodapp.data.web.WebImporter
+import io.github.rakasans.foodapp.data.repository.ShoppingRepository
+import io.github.rakasans.foodapp.data.repository.CollectionRepository
+import io.github.rakasans.foodapp.data.backup.BackupManager
 import io.github.rakasans.foodapp.data.repository.RecipeRepository
 import io.github.rakasans.foodapp.data.repository.TagRepository
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +34,9 @@ class AppContainer(context: Context) {
     val tags = TagRepository(db, auth, clock)
     val recipes = RecipeRepository(db, auth, clock, categories, tags)
     val photos = PhotoStore(context)
+    val shopping = ShoppingRepository(db, auth, clock)
+    val collections = CollectionRepository(db, auth, clock)
+    val backup = BackupManager(db, auth, clock, photos, categories, tags, collections)
     val ocr = OcrEngine(context)
     val shareInbox = ShareInbox()
     val connectivity = Connectivity(context)

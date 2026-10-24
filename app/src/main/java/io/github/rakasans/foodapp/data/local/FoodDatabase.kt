@@ -22,13 +22,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ShoppingPartEntity::class,
         ShoppingItemStateEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class FoodDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
     abstract fun categoryDao(): CategoryDao
     abstract fun tagDao(): TagDao
+    abstract fun shoppingDao(): ShoppingDao
+    abstract fun collectionDao(): CollectionDao
 
     companion object {
         /** v2: zakresy ilości w składnikach. Migracja zachowuje istniejące przepisy. */
@@ -38,9 +40,16 @@ abstract class FoodDatabase : RoomDatabase() {
             }
         }
 
+        /** v3: zakresy na liście zakupów. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE shopping_part ADD COLUMN quantityMax REAL")
+            }
+        }
+
         fun create(context: Context): FoodDatabase =
             Room.databaseBuilder(context, FoodDatabase::class.java, "foodapp.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

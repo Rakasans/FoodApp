@@ -99,6 +99,8 @@ class RecipeRepository(
 
     suspend fun getRecipe(id: String): RecipeEntity? = db.recipeDao().getRecipe(id)
 
+    suspend fun getDetails(id: String): RecipeDetails? = db.recipeDao().getDetails(id)
+
     // ---------- Materiały (v0.2) ----------
 
     /**

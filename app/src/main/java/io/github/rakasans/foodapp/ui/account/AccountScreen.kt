@@ -32,6 +32,9 @@ import io.github.rakasans.foodapp.BuildConfig
 import io.github.rakasans.foodapp.ui.common.BadgeKind
 import io.github.rakasans.foodapp.ui.common.NoticeCard
 import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun AccountScreen(container: AppContainer) {
@@ -61,10 +64,7 @@ fun AccountScreen(container: AppContainer) {
             Text("Logowanie jest atrapą.", fontWeight = FontWeight.Bold)
             Text("Wszystkie dane zapisują się tylko na tym urządzeniu. Prawdziwe logowanie i synchronizacja — późniejszy etap.")
         }
-        NoticeCard(BadgeKind.WARN) {
-            Text("Ryzyko", fontWeight = FontWeight.Bold)
-            Text("Do czasu eksportu kopii zapasowej (v0.3) reset lub utrata telefonu oznacza utratę przepisów.")
-        }
+        BackupSection(container)
         Text("Język aplikacji: polski", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         if (BuildConfig.DEBUG) {
@@ -120,4 +120,63 @@ fun AccountScreen(container: AppContainer) {
             },
         )
     }
+}
+
+/** Kopia zapasowa: plik ZIP z przepisami i zdjęciami, zapisany tam, gdzie wskażesz (np. Dysk Google). */
+@Composable
+private fun BackupSection(container: AppContainer) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        working = true
+        scope.launch {
+            status = try {
+                val n = context.contentResolver.openOutputStream(uri)?.use { container.backup.export(it) }
+                if (n == null) "Nie udało się zapisać pliku." else "Zapisano kopię: ${recipesCount(n)}."
+            } catch (e: Exception) {
+                "Nie udało się zapisać kopii: ${e.message ?: "nieznany błąd"}"
+            }
+            working = false
+        }
+    }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        working = true
+        scope.launch {
+            status = try {
+                val r = context.contentResolver.openInputStream(uri)?.use { container.backup.restore(it) }
+                when {
+                    r == null -> "Nie udało się otworzyć pliku."
+                    r.skipped > 0 -> "Przywrócono ${recipesCount(r.added)}. Pominięto ${r.skipped} — już są na telefonie."
+                    else -> "Przywrócono ${recipesCount(r.added)}."
+                }
+            } catch (e: IllegalArgumentException) {
+                e.message ?: "To nie jest kopia FoodApp."
+            } catch (e: Exception) {
+                "Nie udało się przywrócić kopii: ${e.message ?: "nieznany błąd"}"
+            }
+            working = false
+        }
+    }
+
+    NoticeCard(BadgeKind.INFO) {
+        Text("Kopia zapasowa", fontWeight = FontWeight.Bold)
+        Text("Dane są tylko na tym telefonie. Zapisz kopię (przepisy, oryginały i zdjęcia) do pliku — np. na Dysku Google. Przywrócenie dodaje brakujące przepisy, niczego nie nadpisuje.")
+    }
+    OutlinedButton(
+        enabled = !working,
+        onClick = { exportLauncher.launch("FoodApp-kopia-${java.time.LocalDate.now()}.zip") },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text("Zapisz kopię do pliku") }
+    OutlinedButton(
+        enabled = !working,
+        onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text("Przywróć z kopii") }
+    if (working) Text("Pracuję…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    status?.let { Text(it) }
 }

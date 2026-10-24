@@ -63,7 +63,13 @@ class DetailViewModel(recipeId: String, repo: RecipeRepository) : ViewModel() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> Unit) {
+fun DetailScreen(
+    viewModel: DetailViewModel,
+    photos: PhotoStore,
+    onEdit: () -> Unit,
+    onAddToShopping: () -> Unit,
+    onCollections: () -> Unit,
+) {
     val d by viewModel.details.collectAsStateWithLifecycle()
     val details = d ?: return
     val r = details.recipe
@@ -86,7 +92,13 @@ fun DetailScreen(viewModel: DetailViewModel, photos: PhotoStore, onEdit: () -> U
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             details.categories.forEach { Badge(BadgeUi(it.name, BadgeKind.OK)) }
             details.tags.forEach { Badge(BadgeUi("#${it.name}", BadgeKind.NEUTRAL)) }
-            details.collections.forEach { Badge(BadgeUi("Kolekcja: ${it.name}", BadgeKind.INFO)) }
+            details.collections.filter { it.deletedAt == null }.forEach { Badge(BadgeUi("Kolekcja: ${it.name}", BadgeKind.INFO)) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (details.ingredients.isNotEmpty()) {
+                OutlinedButton(onClick = onAddToShopping, modifier = Modifier.weight(1f)) { Text("Do listy zakupów") }
+            }
+            OutlinedButton(onClick = onCollections, modifier = Modifier.weight(1f)) { Text("Kolekcje") }
         }
 
         if (check.isIncomplete) {

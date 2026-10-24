@@ -28,6 +28,10 @@ interface RecipeDao {
     @Query("SELECT * FROM recipe WHERE id = :id")
     suspend fun getDetails(id: String): RecipeDetails?
 
+    @Transaction
+    @Query("SELECT * FROM recipe WHERE deletedAt IS NULL")
+    suspend fun allDetails(): List<RecipeDetails>
+
     @Upsert
     suspend fun upsertRecipe(recipe: RecipeEntity)
 
@@ -110,4 +114,60 @@ interface TagDao {
 
     @Upsert
     suspend fun upsert(items: List<TagEntity>)
+}
+
+@Dao
+interface ShoppingDao {
+    @Query("SELECT * FROM shopping_part WHERE deletedAt IS NULL AND ownerId = :ownerId ORDER BY createdAt")
+    fun observeParts(ownerId: String): Flow<List<ShoppingPartEntity>>
+
+    @Query("SELECT * FROM shopping_part WHERE deletedAt IS NULL AND ownerId = :ownerId")
+    suspend fun activeParts(ownerId: String): List<ShoppingPartEntity>
+
+    @Upsert
+    suspend fun upsertParts(items: List<ShoppingPartEntity>)
+
+    @Query("UPDATE shopping_part SET deletedAt = :now, updatedAt = :now WHERE id IN (:ids)")
+    suspend fun softDeleteParts(ids: List<String>, now: Long)
+
+    @Query("SELECT * FROM shopping_item_state WHERE ownerId = :ownerId")
+    fun observeStates(ownerId: String): Flow<List<ShoppingItemStateEntity>>
+
+    @Query("SELECT * FROM shopping_item_state WHERE ownerId = :ownerId AND normalizedName = :key")
+    suspend fun getState(ownerId: String, key: String): ShoppingItemStateEntity?
+
+    @Upsert
+    suspend fun upsertState(state: ShoppingItemStateEntity)
+
+    @Query("DELETE FROM shopping_item_state WHERE ownerId = :ownerId AND normalizedName IN (:keys)")
+    suspend fun deleteStates(ownerId: String, keys: List<String>)
+}
+
+@Dao
+interface CollectionDao {
+    @Transaction
+    @Query("SELECT * FROM collection WHERE deletedAt IS NULL AND ownerId = :ownerId ORDER BY name COLLATE NOCASE")
+    fun observeAll(ownerId: String): Flow<List<CollectionWithRecipes>>
+
+    @Transaction
+    @Query("SELECT * FROM collection WHERE id = :id")
+    fun observeOne(id: String): Flow<CollectionWithRecipes?>
+
+    @Query("SELECT * FROM collection WHERE deletedAt IS NULL AND ownerId = :ownerId")
+    suspend fun active(ownerId: String): List<CollectionEntity>
+
+    @Upsert
+    suspend fun upsert(collection: CollectionEntity)
+
+    @Query("SELECT * FROM collection WHERE id = :id")
+    suspend fun get(id: String): CollectionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addRecipe(ref: RecipeCollectionCrossRef)
+
+    @Query("DELETE FROM recipe_collection WHERE recipeId = :recipeId AND collectionId = :collectionId")
+    suspend fun removeRecipe(recipeId: String, collectionId: String)
+
+    @Query("SELECT collectionId FROM recipe_collection WHERE recipeId = :recipeId")
+    suspend fun collectionIdsFor(recipeId: String): List<String>
 }

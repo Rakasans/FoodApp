@@ -191,6 +191,8 @@ data class ShoppingPartEntity(
     val updatedAt: Long,
     val deletedAt: Long? = null,
     val syncState: SyncState = SyncState.LOCAL_ONLY,
+    /** Górna granica zakresu (już przeliczona). Dodane w wersji bazy 3. */
+    val quantityMax: Double? = null,
 )
 
 /** Stan pozycji listy (po znormalizowanej nazwie): odznaczenie i ręczna ilość. */

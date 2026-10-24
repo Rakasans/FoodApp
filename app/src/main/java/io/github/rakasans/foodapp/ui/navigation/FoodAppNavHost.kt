@@ -43,7 +43,15 @@ import io.github.rakasans.foodapp.ui.add.AddScreen
 import io.github.rakasans.foodapp.ui.common.Badge
 import io.github.rakasans.foodapp.ui.common.BadgeKind
 import io.github.rakasans.foodapp.ui.common.BadgeUi
-import io.github.rakasans.foodapp.ui.common.PlannedScreen
+import io.github.rakasans.foodapp.ui.collections.CollectionDetailScreen
+import io.github.rakasans.foodapp.ui.collections.CollectionPickerDialog
+import io.github.rakasans.foodapp.ui.collections.CollectionsScreen
+import io.github.rakasans.foodapp.ui.shopping.PortionsScreen
+import io.github.rakasans.foodapp.ui.shopping.PortionsViewModel
+import io.github.rakasans.foodapp.ui.shopping.ShoppingScreen
+import io.github.rakasans.foodapp.ui.shopping.ShoppingViewModel
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import io.github.rakasans.foodapp.ui.detail.DetailScreen
 import io.github.rakasans.foodapp.ui.detail.DetailViewModel
 import io.github.rakasans.foodapp.ui.editor.EditorScreen
@@ -74,6 +82,10 @@ private object Routes {
     const val IMPORT_TEXT = "import/text?share={share}"
     const val IMPORT_OCR = "import/ocr/{mode}?target={target}&share={share}"
     const val MATERIAL = "material/{id}"
+    const val PORTIONS = "portions?ids={ids}"
+    const val COLLECTION = "collection/{id}"
+    fun portions(ids: List<String> = emptyList()) = "portions?ids=${ids.joinToString(",")}"
+    fun collection(id: String) = "collection/$id"
     fun detail(id: String) = "recipe/$id"
     fun editor(id: String) = "editor/$id"
     /** `share` = znacznik konkretnego udostępnienia (pusty = wejście ręczne). Każde udostępnienie to nowy ekran. */
@@ -128,6 +140,8 @@ fun FoodAppNavHost(container: AppContainer) {
         Routes.IMPORT_TEXT -> "Wklej tekst"
         Routes.IMPORT_OCR -> "Rozpoznaj ze zdjęcia"
         Routes.MATERIAL -> "Zapisany materiał"
+        Routes.PORTIONS -> "Porcje i lista zakupów"
+        Routes.COLLECTION -> "Kolekcja"
         else -> "Przepis"
     }
 
@@ -209,7 +223,14 @@ fun FoodAppNavHost(container: AppContainer) {
                 val vm: DetailViewModel = viewModel(key = "detail-$id", factory = viewModelFactory {
                     initializer { DetailViewModel(id, container.recipes) }
                 })
-                DetailScreen(vm, container.photos, onEdit = { nav.navigate(Routes.editor(id)) })
+                var picker by remember { mutableStateOf(false) }
+                DetailScreen(
+                    vm, container.photos,
+                    onEdit = { nav.navigate(Routes.editor(id)) },
+                    onAddToShopping = { nav.navigate(Routes.portions(listOf(id))) },
+                    onCollections = { picker = true },
+                )
+                if (picker) CollectionPickerDialog(container, id, onDismiss = { picker = false })
             }
             composable(Routes.EDITOR_NEW) { EditorRoute(null, container, nav) }
             composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
@@ -271,10 +292,33 @@ fun FoodAppNavHost(container: AppContainer) {
                 )
             }
             composable(Routes.COLLECTIONS) {
-                PlannedScreen("Kolekcje", "v0.3", "Zestawy przepisów na okazję, np. „Boże Narodzenie”. Niezależne od kategorii i etykiet.")
+                CollectionsScreen(container, onOpen = { nav.navigate(Routes.collection(it)) })
+            }
+            composable(Routes.COLLECTION, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                CollectionDetailScreen(
+                    container, id,
+                    onOpenRecipe = { nav.navigate(Routes.detail(it)) },
+                    onDeleted = { nav.popBackStack() },
+                )
             }
             composable(Routes.SHOPPING) {
-                PlannedScreen("Lista zakupów", "v0.3", "Składniki z wielu przepisów, przeliczanie porcji i bezpieczne łączenie pozycji. Reguły łączenia są już gotowe i przetestowane.")
+                val vm: ShoppingViewModel = viewModel(factory = viewModelFactory {
+                    initializer { ShoppingViewModel(container.shopping) }
+                })
+                ShoppingScreen(vm, onAddFromRecipes = { nav.navigate(Routes.portions()) })
+            }
+            composable(Routes.PORTIONS, arguments = listOf(navArgument("ids") { type = NavType.StringType; defaultValue = "" })) { entry ->
+                val ids = entry.arguments?.getString("ids").orEmpty()
+                val vm: PortionsViewModel = viewModel(key = "portions-$ids", factory = viewModelFactory {
+                    initializer { PortionsViewModel(ids.split(',').filter { it.isNotBlank() }, container.recipes, container.shopping) }
+                })
+                PortionsScreen(vm, onDone = {
+                    nav.navigate(Routes.SHOPPING) {
+                        popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                    }
+                })
             }
             composable(Routes.ACCOUNT) { AccountScreen(container) }
         }

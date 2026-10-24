@@ -77,4 +77,35 @@ class ShoppingMergeTest {
         ).single()
         assertEquals("200 g + 300–350 g", line.quantityText)
     }
+
+    private fun ing(name: String, q: Double?, unit: String?, max: Double? = null, noQ: Boolean = false) =
+        IngredientForShopping(name, "$q $unit $name", q, max, unit, noQ)
+
+    @Test
+    fun `przeliczenie porcji obejmuje zakres a nieznana ilosc zostaje nieznana`() {
+        val parts = ShoppingBuilder.parts(
+            "Zupa",
+            listOf(ing("dynia", 1.0, "kg"), ing("ziemniaki", 300.0, "g", max = 350.0), ing("mleko kokosowe", null, null), ing("sól", null, null, noQ = true)),
+            Scaling.ByServings(original = 4, target = 6),
+        )
+        assertEquals(1.5, parts[0].quantity!!, 1e-9)
+        assertEquals(450.0, parts[1].quantity!!, 1e-9)
+        assertEquals(525.0, parts[1].quantityMax!!, 1e-9)
+        assertEquals(null, parts[2].quantity)
+        assertTrue(parts[3].noQuantity)
+        assertEquals("6 porc. zamiast 4", parts[0].factorLabel)
+        val lines = ShoppingMerge.merge(parts).associateBy { it.key }
+        assertEquals("1,5 kg", lines.getValue("dynia").quantityText)
+        assertEquals("450–525 g", lines.getValue("ziemniaki").quantityText)
+        assertEquals("ilość nieznana", lines.getValue("mleko kokosowe").quantityText)
+        assertEquals("do smaku", lines.getValue("sól").quantityText)
+    }
+
+    @Test
+    fun `mnoznik 1 nie dodaje etykiety a sztuki zostaja sztukami`() {
+        val parts = ShoppingBuilder.parts("Placki", listOf(ing("jajka", 2.0, "szt.")), Scaling.ByMultiplier(1.0))
+        assertEquals(null, parts.single().factorLabel)
+        assertEquals("szt.", parts.single().unit)
+        assertEquals(2.0, parts.single().quantity!!, 1e-9)
+    }
 }

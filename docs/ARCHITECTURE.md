@@ -125,4 +125,22 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
 - `IngredientParser`: ilość na końcu linii („Sezam - 10g”, „Liść laurowy 3”, „Cynamon 1 pałka”); liczba po „typ/nr/rozmiar” nie jest ilością. Nowe jednostki: pałka, laska, ziarenko, gwiazdka.
 - `RecipeTextParser` bez nagłówków: krótka linia bez ilości w środku listy składników („Mała dymka”) to składnik z ilością „brak danych”.
 - Zdjęcia w proporcjach źródła (przycięte do 2:3…2:1); miniatura rolki bez nakładki „play”.
-- Przycisk „Otwórz w Instagramie” / „Otwórz stronę” przy źródle (szczegóły i edytor).
+- Przycisk „Otwórz w Instagramie” / „Otwórz stronę” przy źródle. „Pokaż oryginał” — w trybie przeglądania; w edytorze tylko przy sprawdzaniu szkicu z importu.
+
+## v0.3 — import stron, lista zakupów, kolekcje, kopia zapasowa
+
+- **Import ze stron** (`domain/WebRecipePage`, `domain/MiniJson`, `data/web/WebImporter`): telefon pobiera stronę i czyta
+  bloki JSON-LD schema.org/Recipe (także w `@graph`): nazwa, składniki, kroki (HowToStep/HowToSection/HTML), porcje albo
+  wydajność, czasy ISO 8601, zdjęcie, autor, wartości odżywcze (podstawa „1 porcja” — tak definiuje je schema.org).
+  Oryginał danych strony trafia do `materialText`. Brak danych strukturalnych → link zostaje (`ERROR`), można wpisać ręcznie.
+  Offline → `WAITING_NETWORK`, pobranie po odzyskaniu sieci. „Udostępnij”: tekst z linkiem i ≤200 znakami poza nim = link,
+  dłuższy = tekst przepisu (`isLinkShare`).
+- **Lista zakupów** (`domain/ShoppingBuilder` + `ShoppingMerge`, `ShoppingRepository`, `ui/shopping`): ekran „Porcje”
+  (z przepisu albo z listy; wyszukiwanie przepisów, wiele naraz, podgląd scalania). Porcje znane → docelowa liczba porcji;
+  nieznane → mnożnik ×½/×1/×2/×3. Zakresy przeliczane na obu końcach i nigdy nie sumowane. Pozycje: odhaczanie,
+  rozwinięcie źródeł, ilość wpisana ręcznie (np. gdy nieznana), ręczne pozycje, „Usuń kupione”, „Wyczyść listę”.
+- **Kolekcje** (`CollectionRepository`, `ui/collections`): lista, tworzenie, zmiana nazwy, usuwanie (przepisy zostają),
+  dodawanie przepisów z wyszukiwaniem; w szczegółach przepisu okno „Kolekcje” z wyszukiwaniem i tworzeniem nowej.
+- **Kopia zapasowa** (`domain/Backup`, `data/backup/BackupManager`): ZIP z `recipes.json` (format jawny, z wersją)
+  i `photos/`. Przywracanie dokłada brakujące przepisy po identyfikatorze — niczego nie nadpisuje.
+- Baza w wersji 3: `shopping_part.quantityMax` (migracja 2→3).

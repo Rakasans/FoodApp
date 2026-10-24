@@ -90,3 +90,42 @@ object ShoppingMerge {
         else -> "${formatQuantity(value)} $unit"
     }
 }
+
+/** Składnik przepisu w postaci potrzebnej do listy zakupów. */
+data class IngredientForShopping(
+    val name: String,
+    val rawText: String,
+    val quantity: Double?,
+    val quantityMax: Double?,
+    val unit: String?,
+    val noQuantity: Boolean,
+)
+
+/**
+ * Tworzy wkłady do listy zakupów z przepisu i przeliczenia (specyfikacja, sekcja 6, pkt 5–6):
+ * - przeliczamy tylko znane ilości (także oba końce zakresu); nieznana zostaje nieznana,
+ * - przepis się nie zmienia — przeliczenie dotyczy wyłącznie listy,
+ * - sztuk nie zamieniamy na gramy ani łyżek na mililitry.
+ */
+object ShoppingBuilder {
+
+    /** Mnożniki całego przepisu, gdy liczba porcji jest nieznana — bez pozornej precyzji. */
+    val MULTIPLIERS = listOf(0.5, 1.0, 2.0, 3.0)
+
+    fun parts(recipeName: String, items: List<IngredientForShopping>, scaling: Scaling): List<ShoppingPart> {
+        val f = scaling.factor
+        val label = if (f == 1.0) null else scaling.label
+        return items.filter { it.name.isNotBlank() || it.rawText.isNotBlank() }.map { i ->
+            ShoppingPart(
+                name = i.name.ifBlank { i.rawText }.trim(),
+                quantity = if (i.noQuantity) null else i.quantity?.times(f),
+                unit = i.unit,
+                quantityMax = if (i.noQuantity) null else i.quantityMax?.times(f),
+                noQuantity = i.noQuantity,
+                recipeName = recipeName,
+                rawText = i.rawText,
+                factorLabel = label,
+            )
+        }
+    }
+}
