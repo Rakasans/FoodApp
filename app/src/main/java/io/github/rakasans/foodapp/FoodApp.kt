@@ -11,6 +11,8 @@ import io.github.rakasans.foodapp.data.repository.CategoryRepository
 import io.github.rakasans.foodapp.data.repository.PhotoStore
 import io.github.rakasans.foodapp.data.ocr.OcrEngine
 import io.github.rakasans.foodapp.share.ShareInbox
+import io.github.rakasans.foodapp.core.Connectivity
+import io.github.rakasans.foodapp.data.instagram.ReelImporter
 import io.github.rakasans.foodapp.data.repository.RecipeRepository
 import io.github.rakasans.foodapp.data.repository.TagRepository
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +32,8 @@ class AppContainer(context: Context) {
     val photos = PhotoStore(context)
     val ocr = OcrEngine(context)
     val shareInbox = ShareInbox()
+    val connectivity = Connectivity(context)
+    val reels = ReelImporter(recipes, photos, connectivity)
 }
 
 class FoodApp : Application() {
@@ -40,5 +44,8 @@ class FoodApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.appScope.launch { container.categories.ensureDefaults() }
+        // rolki zapisane bez internetu pobierają się, gdy sieć wróci
+        container.appScope.launch { container.reels.retryWaiting() }
+        container.connectivity.onAvailable { container.appScope.launch { container.reels.retryWaiting() } }
     }
 }

@@ -61,6 +61,15 @@ interface RecipeDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addTags(refs: List<RecipeTagCrossRef>)
 
+    @Query("UPDATE recipe SET processing = :state, updatedAt = :now WHERE id = :id")
+    suspend fun setProcessing(id: String, state: ProcessingState, now: Long)
+
+    @Query("UPDATE recipe SET materialNote = :note, name = :name, updatedAt = :now WHERE id = :id")
+    suspend fun setMaterialNote(id: String, note: String?, name: String, now: Long)
+
+    @Query("SELECT id FROM recipe WHERE deletedAt IS NULL AND status = 'MATERIAL' AND processing = 'WAITING_NETWORK' AND materialKind = 'INSTAGRAM_LINK'")
+    suspend fun waitingReelIds(): List<String>
+
     @Query("SELECT id, name FROM recipe WHERE deletedAt IS NULL")
     suspend fun activeNames(): List<RecipeNameRow>
 

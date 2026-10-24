@@ -128,9 +128,9 @@ class LibraryViewModel(
             when (r.status) {
                 RecipeStatus.MATERIAL -> when (r.processing) {
                     ProcessingState.WAITING_NETWORK -> add(BadgeUi("Czeka na internet", BadgeKind.INFO))
-                    ProcessingState.RUNNING -> add(BadgeUi("Przetwarzanie…", BadgeKind.INFO))
+                    ProcessingState.RUNNING -> add(BadgeUi("Pobieranie opisu…", BadgeKind.INFO))
                     ProcessingState.ERROR -> add(BadgeUi("Import nieudany — materiał zachowany", BadgeKind.DANGER))
-                    ProcessingState.NEEDS_SCREENSHOT -> add(BadgeUi("Rolka — dodaj zrzut opisu", BadgeKind.INFO))
+                    ProcessingState.NEEDS_SCREENSHOT -> add(BadgeUi("Rolka — opis nie pobrany", BadgeKind.INFO))
                     ProcessingState.NONE -> add(BadgeUi("Link zapisany — do uzupełnienia", BadgeKind.INFO))
                 }
                 RecipeStatus.DRAFT -> add(BadgeUi("Szkic — do przejrzenia", BadgeKind.WARN))

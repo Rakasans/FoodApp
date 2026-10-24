@@ -20,6 +20,8 @@ import io.github.rakasans.foodapp.data.local.ProcessingState
 import io.github.rakasans.foodapp.data.local.SourceType
 import io.github.rakasans.foodapp.domain.IngredientParser
 import io.github.rakasans.foodapp.domain.ParsedRecipeText
+import io.github.rakasans.foodapp.domain.InstagramPost
+import io.github.rakasans.foodapp.domain.RecipeTextParser
 import io.github.rakasans.foodapp.domain.DuplicateRules
 import io.github.rakasans.foodapp.domain.ExistingRecipe
 import io.github.rakasans.foodapp.domain.normalizeName
@@ -100,7 +102,12 @@ class RecipeRepository(
      * Zapisuje materiał bez przepisu: rolkę z Instagrama (czeka na zrzut opisu) albo link do strony
      * (import ze stron — v0.3). Materiał od razu jest w bibliotece i daje się wyszukać po notatce.
      */
-    suspend fun saveLinkMaterial(url: String, note: String?, instagram: Boolean): String {
+    suspend fun saveLinkMaterial(
+        url: String,
+        note: String?,
+        instagram: Boolean,
+        processing: ProcessingState = if (instagram) ProcessingState.NEEDS_SCREENSHOT else ProcessingState.NONE,
+    ): String {
         val now = clock.now()
         val id = Ids.new()
         val cleanNote = note?.trim()?.ifBlank { null }
@@ -108,7 +115,7 @@ class RecipeRepository(
             RecipeEntity(
                 id = id, ownerId = auth.currentUser.value.id,
                 status = RecipeStatus.MATERIAL,
-                processing = if (instagram) ProcessingState.NEEDS_SCREENSHOT else ProcessingState.NONE,
+                processing = processing,
                 name = when {
                     cleanNote != null -> (if (instagram) "Rolka: " else "Link: ") + cleanNote
                     instagram -> "Rolka z Instagrama"
@@ -176,6 +183,54 @@ class RecipeRepository(
             dao.upsertSteps(parsed.steps.mapIndexed { index, s -> StepEntity(Ids.new(), id, index, s) })
         }
         return id
+    }
+
+    suspend fun setProcessing(id: String, state: ProcessingState) = db.recipeDao().setProcessing(id, state, clock.now())
+
+    suspend fun waitingReelIds(): List<String> = db.recipeDao().waitingReelIds()
+
+    /** Notatka do zapisanej rolki („od Ani — makaron”) — widoczna w nazwie i w wyszukiwaniu. */
+    suspend fun setMaterialNote(id: String, note: String) {
+        val clean = note.trim().ifBlank { null }
+        db.recipeDao().setMaterialNote(id, clean, if (clean != null) "Rolka: $clean" else "Rolka z Instagrama", clock.now())
+    }
+
+    /**
+     * Szkic z opisu rolki pobranego z Instagrama. Oryginalny opis zostaje w `materialText`,
+     * miniatura rolki staje się zdjęciem przepisu, autor — autorem źródła.
+     */
+    suspend fun createDraftFromReel(id: String, post: InstagramPost, photoPath: String?) {
+        val caption = post.caption ?: return
+        val parsed = RecipeTextParser.parse(caption)
+        val now = clock.now()
+        db.withTransaction {
+            val dao = db.recipeDao()
+            val r = dao.getRecipe(id) ?: return@withTransaction
+            dao.upsertRecipe(
+                r.copy(
+                    status = RecipeStatus.DRAFT,
+                    processing = ProcessingState.NONE,
+                    name = parsed.name,
+                    servings = parsed.servings,
+                    photoUri = photoPath ?: r.photoUri,
+                    sourceType = SourceType.INSTAGRAM_REEL,
+                    sourceAuthor = post.author?.let { "@$it" } ?: r.sourceAuthor,
+                    materialText = caption,
+                    updatedAt = now,
+                )
+            )
+            dao.deleteIngredients(id)
+            dao.upsertIngredients(parsed.ingredients.mapIndexed { index, line ->
+                val p = IngredientParser.parse(line.raw)
+                IngredientEntity(
+                    id = Ids.new(), recipeId = id, position = index, groupName = line.group,
+                    rawText = line.raw, name = p.name.ifBlank { line.raw }, quantity = p.quantity, unit = p.unit,
+                    unitInferred = p.unitInferred,
+                )
+            })
+            dao.deleteSteps(id)
+            dao.upsertSteps(parsed.steps.mapIndexed { index, s -> StepEntity(Ids.new(), id, index, s) })
+        }
     }
 
     /** „Wprowadź ręcznie” z materiału: pusty szkic, który zachowuje źródło (link, notatkę, zdjęcie). */

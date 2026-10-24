@@ -108,5 +108,14 @@ Te reguły są czystym Kotlinem w `domain/` — łatwe do testowania bez Android
   rozpoznany tekst do poprawienia przed utworzeniem szkicu.
 - „Udostępnij → Zapisz w FoodApp”: tekst/link → import linku lub tekstu, obraz → OCR.
 
+## 9. v0.2.1 — import rolki z linku, słownik OCR
+
+- „Udostępnij” rolki → telefon pobiera publiczną stronę rolki (strona „embed”, potem zwykła), odczytuje opis,
+  miniaturę i autora (`domain/InstagramPage`), tworzy szkic ze zdjęciem. Bez internetu rolka czeka
+  (`WAITING_NETWORK`) i pobiera się po odzyskaniu sieci (`ReelImporter.retryWaiting`). Przy niepowodzeniu:
+  ponów, zrzut ekranu albo notatka i zapis na później. Nieoficjalny odczyt — może przestać działać.
+- OCR: słownik kulinarny poprawia brakujące ogonki tylko tam, gdzie poprawka jest jednoznaczna (`domain/OcrCorrector`).
+  Docelowo wariant C: przycisk „Rozpoznaj dokładniej (online)” z modelem AI po stronie backendu.
+
 Znane uproszczenia v0.1: zdjęcie tylko z galerii (aparat — v0.2), grupy składników zachowywane, ale nieedytowalne,
 stare pliki zdjęć nie są jeszcze sprzątane po podmianie.

@@ -38,11 +38,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import io.github.rakasans.foodapp.AppContainer
+import io.github.rakasans.foodapp.data.instagram.ReelImporter
 import io.github.rakasans.foodapp.data.local.MaterialKind
 import io.github.rakasans.foodapp.data.local.ProcessingState
 import io.github.rakasans.foodapp.data.local.RecipeEntity
 import io.github.rakasans.foodapp.data.local.RecipeStatus
 import io.github.rakasans.foodapp.data.local.SourceType
+import io.github.rakasans.foodapp.domain.OcrCorrector
 import io.github.rakasans.foodapp.domain.RecipeTextParser
 import io.github.rakasans.foodapp.domain.extractUrl
 import io.github.rakasans.foodapp.domain.isInstagramUrl
@@ -74,54 +76,109 @@ fun LinkImportScreen(
 ) {
     var url by rememberSaveable { mutableStateOf(initialText?.let { extractUrl(it) ?: it }.orEmpty()) }
     var note by rememberSaveable { mutableStateOf("") }
+    var reel by remember { mutableStateOf<ReelState>(ReelState.Idle) }
     val scope = rememberCoroutineScope()
     val clean = url.trim()
     val valid = clean.startsWith("http://") || clean.startsWith("https://")
     val instagram = valid && isInstagramUrl(clean)
 
-    ImportColumn {
-        if (fromShare) {
-            NoticeCard(BadgeKind.INFO) { Text("Odebrano przez „Udostępnij”.") }
-        }
-        OutlinedTextField(
-            value = url, onValueChange = { url = it }, label = { Text("Adres przepisu lub rolki") },
-            placeholder = { Text("https://…") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            isError = url.isNotBlank() && !valid,
-            supportingText = { if (url.isNotBlank() && !valid) Text("Adres powinien zaczynać się od https://") },
-        )
-        if (instagram) {
-            NoticeCard(BadgeKind.INFO) {
-                Text("Rolka z Instagrama", fontWeight = FontWeight.Bold)
-                Text("Nie pobieramy treści z Instagrama automatycznie. Zapisz rolkę — od razu będzie w „Moich przepisach” — i dodaj zrzut ekranu opisu, z którego rozpoznamy przepis na telefonie.")
+    fun startReel() {
+        reel = ReelState.Working
+        scope.launch {
+            reel = when (val r = container.reels.import(clean)) {
+                is ReelImporter.Result.Draft -> { onOpenEditor(r.id); ReelState.Idle }
+                is ReelImporter.Result.Waiting -> ReelState.Waiting(r.id)
+                is ReelImporter.Result.Failed -> ReelState.Failed(r.id, r.reason)
             }
-            OutlinedTextField(
-                value = note, onValueChange = { note = it },
-                label = { Text("Notatka (opcjonalnie) — ułatwi wyszukanie") },
-                placeholder = { Text("np. od Ani — makaron z dynią") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            )
-            Button(onClick = {
-                scope.launch { onOpenOcrForReel(container.recipes.saveLinkMaterial(clean, note, instagram = true)) }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
-            OutlinedButton(onClick = {
-                scope.launch { container.recipes.saveLinkMaterial(clean, note, instagram = true); onSaved() }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Zapisz rolkę na później") }
-        } else if (valid) {
-            NoticeCard(BadgeKind.INFO) {
-                Text("Strona z przepisem", fontWeight = FontWeight.Bold)
-                Text("Automatyczny import ze stron pojawi się w v0.3. Teraz możesz zapisać link na później albo od razu wpisać przepis — link zostanie jako źródło.")
-            }
-            OutlinedTextField(
-                value = note, onValueChange = { note = it }, label = { Text("Notatka (opcjonalnie)") },
-                singleLine = true, modifier = Modifier.fillMaxWidth(),
-            )
-            Button(onClick = {
-                scope.launch { onOpenEditor(container.recipes.createEmptyDraft(SourceType.WEB, clean)) }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Wprowadź przepis ręcznie") }
-            OutlinedButton(onClick = {
-                scope.launch { container.recipes.saveLinkMaterial(clean, note, instagram = false); onSaved() }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Zapisz link na później") }
         }
     }
+
+    fun retry(id: String) {
+        reel = ReelState.Working
+        scope.launch {
+            reel = when (val r = container.reels.process(id)) {
+                is ReelImporter.Result.Draft -> { onOpenEditor(r.id); ReelState.Idle }
+                is ReelImporter.Result.Waiting -> ReelState.Waiting(r.id)
+                is ReelImporter.Result.Failed -> ReelState.Failed(r.id, r.reason)
+            }
+        }
+    }
+
+    // Z „Udostępnij”: rolka importuje się od razu, bez dodatkowych kliknięć.
+    LaunchedEffect(Unit) { if (fromShare && instagram) startReel() }
+
+    ImportColumn {
+        when (val st = reel) {
+            ReelState.Idle -> {
+                OutlinedTextField(
+                    value = url, onValueChange = { url = it }, label = { Text("Adres przepisu lub rolki") },
+                    placeholder = { Text("https://…") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    isError = url.isNotBlank() && !valid,
+                    supportingText = { if (url.isNotBlank() && !valid) Text("Adres powinien zaczynać się od https://") },
+                )
+                if (instagram) {
+                    Text(
+                        "Pobierzemy opis i zdjęcie rolki i od razu utworzymy szkic do sprawdzenia.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = ::startReel, modifier = Modifier.fillMaxWidth()) { Text("Importuj rolkę") }
+                } else if (valid) {
+                    NoticeCard(BadgeKind.INFO) {
+                        Text("Strona z przepisem", fontWeight = FontWeight.Bold)
+                        Text("Automatyczny import ze stron pojawi się w v0.3. Teraz możesz zapisać link na później albo od razu wpisać przepis — link zostanie jako źródło.")
+                    }
+                    OutlinedTextField(
+                        value = note, onValueChange = { note = it }, label = { Text("Notatka (opcjonalnie)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(onClick = {
+                        scope.launch { onOpenEditor(container.recipes.createEmptyDraft(SourceType.WEB, clean)) }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Wprowadź przepis ręcznie") }
+                    OutlinedButton(onClick = {
+                        scope.launch { container.recipes.saveLinkMaterial(clean, note, instagram = false); onSaved() }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Zapisz link na później") }
+                }
+            }
+            ReelState.Working -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator()
+                Text("Pobieram opis rolki…")
+            }
+            is ReelState.Waiting -> {
+                NoticeCard(BadgeKind.INFO) {
+                    Text("Rolka zapisana", fontWeight = FontWeight.Bold)
+                    Text("Brak internetu. Opis pobierze się automatycznie, gdy telefon połączy się z siecią — szkic pojawi się w „Moich przepisach”.")
+                }
+                NoteField(note, { note = it }) { scope.launch { container.recipes.setMaterialNote(st.id, note); onSaved() } }
+            }
+            is ReelState.Failed -> {
+                NoticeCard(BadgeKind.WARN) {
+                    Text(st.reason, fontWeight = FontWeight.Bold)
+                    Text("Rolka jest zapisana w „Moich przepisach”. Możesz spróbować ponownie albo dodać zrzut ekranu opisu.")
+                }
+                Button(onClick = { retry(st.id) }, modifier = Modifier.fillMaxWidth()) { Text("Spróbuj ponownie") }
+                OutlinedButton(onClick = { onOpenOcrForReel(st.id) }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
+                NoteField(note, { note = it }) { scope.launch { container.recipes.setMaterialNote(st.id, note); onSaved() } }
+            }
+        }
+    }
+}
+
+private sealed interface ReelState {
+    data object Idle : ReelState
+    data object Working : ReelState
+    data class Waiting(val id: String) : ReelState
+    data class Failed(val id: String, val reason: String) : ReelState
+}
+
+/** Notatka „od kogo” do zapisanej rolki — ułatwia odnalezienie, zanim powstanie przepis. */
+@Composable
+private fun NoteField(note: String, onChange: (String) -> Unit, onSave: () -> Unit) {
+    OutlinedTextField(
+        value = note, onValueChange = onChange,
+        label = { Text("Notatka (opcjonalnie)") }, placeholder = { Text("np. od Ani — makaron z dynią") },
+        singleLine = true, modifier = Modifier.fillMaxWidth(),
+    )
+    TextButton(onClick = onSave) { Text("Zapisz i wróć do przepisów") }
 }
 
 // ------------------------------------------------------------------ Tekst
@@ -188,7 +245,8 @@ fun OcrImportScreen(
         step = OcrStep.Working
         scope.launch {
             step = try {
-                text = container.ocr.recognize(Uri.fromFile(File(path))).trim()
+                // słownik poprawia typowe błędy polskich znaków (maka → mąka); użytkownik i tak sprawdza tekst
+                text = OcrCorrector.correct(container.ocr.recognize(Uri.fromFile(File(path)))).trim()
                 if (text.isBlank()) OcrStep.Failed(path, "Nie rozpoznano tekstu na zdjęciu.") else OcrStep.Review(path)
             } catch (e: Exception) {
                 OcrStep.Failed(path, "Nie udało się rozpoznać tekstu.")
@@ -301,13 +359,33 @@ fun MaterialScreen(
         r.sourceUrl?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         NoticeCard(BadgeKind.INFO) {
             Text(
-                if (reel && r.processing == ProcessingState.NEEDS_SCREENSHOT)
-                    "Rolka jest zapisana. Aby utworzyć przepis, dodaj zrzut ekranu opisu — tekst rozpoznamy na telefonie."
+                if (reel && r.processing == ProcessingState.WAITING_NETWORK)
+                    "Rolka czeka na internet — opis pobierze się automatycznie po połączeniu."
+                else if (reel)
+                    "Rolka jest zapisana. Pobierz opis z Instagrama albo dodaj zrzut ekranu opisu."
                 else "Link jest zapisany. Automatyczny import ze stron pojawi się w v0.3 — teraz możesz wpisać przepis ręcznie."
             )
         }
         if (reel) {
-            Button(onClick = { onAddScreenshot(id) }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
+            var fetching by remember { mutableStateOf(false) }
+            var fetchError by remember { mutableStateOf<String?>(null) }
+            Button(
+                enabled = !fetching,
+                onClick = {
+                    fetching = true
+                    scope.launch {
+                        when (val res = container.reels.process(id)) {
+                            is ReelImporter.Result.Draft -> onOpenEditor(res.id)
+                            is ReelImporter.Result.Waiting -> fetchError = "Brak internetu — opis pobierze się po połączeniu."
+                            is ReelImporter.Result.Failed -> fetchError = res.reason
+                        }
+                        fetching = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (fetching) "Pobieram opis…" else "Pobierz opis z Instagrama") }
+            fetchError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            OutlinedButton(onClick = { onAddScreenshot(id) }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
         }
         r.sourceUrl?.let { url ->
             OutlinedButton(onClick = {
