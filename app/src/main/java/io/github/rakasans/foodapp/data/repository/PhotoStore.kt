@@ -30,6 +30,9 @@ class PhotoStore(private val context: Context) {
         }.getOrNull()
     }
 
+    /** Nowy plik na zdjęcie z aparatu (udostępniany aparatowi przez FileProvider). */
+    fun newPhotoFile(): File = File(dir, "${Ids.new()}.jpg")
+
     suspend fun delete(path: String?) = withContext(Dispatchers.IO) {
         if (path != null && path.startsWith(dir.absolutePath)) File(path).delete()
     }

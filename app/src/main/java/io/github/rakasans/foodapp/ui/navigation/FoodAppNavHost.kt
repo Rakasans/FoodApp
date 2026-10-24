@@ -50,6 +50,16 @@ import io.github.rakasans.foodapp.ui.editor.EditorScreen
 import io.github.rakasans.foodapp.ui.editor.EditorViewModel
 import io.github.rakasans.foodapp.ui.library.LibraryScreen
 import io.github.rakasans.foodapp.ui.library.LibraryViewModel
+import io.github.rakasans.foodapp.ui.library.OpenTarget
+import io.github.rakasans.foodapp.ui.importing.LinkImportScreen
+import io.github.rakasans.foodapp.ui.importing.MaterialScreen
+import io.github.rakasans.foodapp.ui.importing.OcrImportScreen
+import io.github.rakasans.foodapp.ui.importing.OcrMode
+import io.github.rakasans.foodapp.ui.importing.TextImportScreen
+import io.github.rakasans.foodapp.domain.extractUrl
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 
 private object Routes {
     const val LIBRARY = "library"
@@ -60,8 +70,27 @@ private object Routes {
     const val DETAIL = "recipe/{id}"
     const val EDITOR_NEW = "editor/new"
     const val EDITOR = "editor/{id}"
+    const val IMPORT_LINK = "import/link?share={share}"
+    const val IMPORT_TEXT = "import/text?share={share}"
+    const val IMPORT_OCR = "import/ocr/{mode}?target={target}&share={share}"
+    const val MATERIAL = "material/{id}"
     fun detail(id: String) = "recipe/$id"
     fun editor(id: String) = "editor/$id"
+    fun importLink(share: Boolean = false) = "import/link?share=$share"
+    fun importText(share: Boolean = false) = "import/text?share=$share"
+    fun importOcr(mode: OcrMode, target: String? = null, share: Boolean = false) =
+        "import/ocr/${mode.name}?target=${target.orEmpty()}&share=$share"
+    fun material(id: String) = "material/$id"
+}
+
+private val shareArg = navArgument("share") { type = NavType.BoolType; defaultValue = false }
+
+/** Szkic z importu: edytor zamiast ekranu importu (wstecz wraca do biblioteki). */
+private fun NavHostController.openEditorReplacing(id: String) {
+    navigate(Routes.editor(id)) {
+        popUpTo(Routes.LIBRARY)
+        launchSingleTop = true
+    }
 }
 
 private data class TopLevel(val route: String, val label: String, val icon: ImageVector, val title: String)
@@ -94,7 +123,23 @@ fun FoodAppNavHost(container: AppContainer) {
     val title = current?.title ?: when (route) {
         Routes.EDITOR_NEW -> "Nowy przepis"
         Routes.EDITOR -> "Edycja przepisu"
+        Routes.IMPORT_LINK -> "Link do przepisu"
+        Routes.IMPORT_TEXT -> "Wklej tekst"
+        Routes.IMPORT_OCR -> "Rozpoznaj ze zdjęcia"
+        Routes.MATERIAL -> "Zapisany materiał"
         else -> "Przepis"
+    }
+
+    // „Udostępnij” z innych aplikacji: kierujemy do właściwego importu; ekran odbiera treść ze skrzynki.
+    val shared by container.shareInbox.pending.collectAsState()
+    LaunchedEffect(shared) {
+        val s = shared ?: return@LaunchedEffect
+        val target = when {
+            s.imageUri != null -> Routes.importOcr(OcrMode.PHOTO, share = true)
+            s.text != null && extractUrl(s.text) != null -> Routes.importLink(share = true)
+            else -> Routes.importText(share = true)
+        }
+        nav.navigate(target) { launchSingleTop = true }
     }
 
     Scaffold(
@@ -146,7 +191,15 @@ fun FoodAppNavHost(container: AppContainer) {
                 })
                 LibraryScreen(
                     viewModel = vm,
-                    onOpenRecipe = { id, isDraft -> nav.navigate(if (isDraft) Routes.editor(id) else Routes.detail(id)) },
+                    onOpenRecipe = { id, target ->
+                        nav.navigate(
+                            when (target) {
+                                OpenTarget.EDITOR -> Routes.editor(id)
+                                OpenTarget.MATERIAL -> Routes.material(id)
+                                OpenTarget.DETAIL -> Routes.detail(id)
+                            }
+                        )
+                    },
                     onAddRecipe = { nav.navigate(Routes.ADD) },
                 )
             }
@@ -162,7 +215,56 @@ fun FoodAppNavHost(container: AppContainer) {
                 EditorRoute(entry.arguments?.getString("id"), container, nav)
             }
             composable(Routes.ADD) {
-                AddScreen(onManual = { nav.navigate(Routes.EDITOR_NEW) })
+                AddScreen(
+                    onManual = { nav.navigate(Routes.EDITOR_NEW) },
+                    onLink = { nav.navigate(Routes.importLink()) },
+                    onScreenshot = { nav.navigate(Routes.importOcr(OcrMode.SCREENSHOT)) },
+                    onText = { nav.navigate(Routes.importText()) },
+                    onPhoto = { nav.navigate(Routes.importOcr(OcrMode.PHOTO)) },
+                )
+            }
+            composable(Routes.IMPORT_LINK, arguments = listOf(shareArg)) { entry ->
+                val fromShare = entry.arguments?.getBoolean("share") == true
+                val sharedText = remember { if (fromShare) container.shareInbox.take()?.text else null }
+                LinkImportScreen(
+                    container = container,
+                    initialText = sharedText,
+                    fromShare = fromShare,
+                    onOpenEditor = { nav.openEditorReplacing(it) },
+                    onOpenOcrForReel = { id ->
+                        nav.navigate(Routes.importOcr(OcrMode.SCREENSHOT, target = id)) { popUpTo(Routes.LIBRARY) }
+                    },
+                    onSaved = { nav.navigate(Routes.LIBRARY) { popUpTo(Routes.LIBRARY) { inclusive = true } } },
+                )
+            }
+            composable(Routes.IMPORT_TEXT, arguments = listOf(shareArg)) { entry ->
+                val fromShare = entry.arguments?.getBoolean("share") == true
+                val sharedText = remember { if (fromShare) container.shareInbox.take()?.text else null }
+                TextImportScreen(container, sharedText, fromShare, onOpenEditor = { nav.openEditorReplacing(it) })
+            }
+            composable(
+                Routes.IMPORT_OCR,
+                arguments = listOf(
+                    navArgument("mode") { type = NavType.StringType },
+                    navArgument("target") { type = NavType.StringType; defaultValue = "" },
+                    shareArg,
+                ),
+            ) { entry ->
+                val mode = OcrMode.valueOf(entry.arguments?.getString("mode") ?: OcrMode.PHOTO.name)
+                val target = entry.arguments?.getString("target")?.ifBlank { null }
+                val fromShare = entry.arguments?.getBoolean("share") == true
+                val sharedImage = remember { if (fromShare) container.shareInbox.take()?.imageUri else null }
+                OcrImportScreen(container, mode, target, sharedImage, onOpenEditor = { nav.openEditorReplacing(it) })
+            }
+            composable(Routes.MATERIAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                MaterialScreen(
+                    container = container,
+                    id = id,
+                    onOpenEditor = { nav.openEditorReplacing(it) },
+                    onAddScreenshot = { nav.navigate(Routes.importOcr(OcrMode.SCREENSHOT, target = it)) },
+                    onClose = { nav.popBackStack() },
+                )
             }
             composable(Routes.COLLECTIONS) {
                 PlannedScreen("Kolekcje", "v0.3", "Zestawy przepisów na okazję, np. „Boże Narodzenie”. Niezależne od kategorii i etykiet.")

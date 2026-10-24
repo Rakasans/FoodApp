@@ -120,6 +120,13 @@ fun EditorScreen(
             }
         }
 
+        if (d.isImported && !state.editingApproved) {
+            NoticeCard(BadgeKind.INFO) {
+                Text("Sprawdź szkic", fontWeight = FontWeight.Bold)
+                Text("Przepis rozpoznany automatycznie. Pola, których nie znaleźliśmy, są puste — niczego nie dopisujemy. Oryginał jest na dole formularza.")
+            }
+        }
+
         // Zdjęcie
         SectionLabel("Zdjęcie potrawy")
         val photo = d.photoPath
@@ -250,6 +257,26 @@ fun EditorScreen(
             minLines = 3,
             modifier = Modifier.fillMaxWidth(),
         )
+
+        val original = d.materialText
+        if (!original.isNullOrBlank()) {
+            var showOriginal by rememberSaveable { mutableStateOf(false) }
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionLabel("Źródło i oryginalny materiał")
+                    d.materialNote?.let { Text("Notatka: $it") }
+                    d.sourceUrl?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    TextButton(onClick = { showOriginal = !showOriginal }) {
+                        Text(if (showOriginal) "Ukryj oryginał" else "Pokaż oryginał")
+                    }
+                    if (showOriginal) Text(original, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
 
         Button(onClick = viewModel::approve, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.editingApproved) "Zapisz zmiany" else "Zatwierdź przepis")

@@ -9,6 +9,8 @@ import io.github.rakasans.foodapp.core.SystemClock
 import io.github.rakasans.foodapp.data.local.FoodDatabase
 import io.github.rakasans.foodapp.data.repository.CategoryRepository
 import io.github.rakasans.foodapp.data.repository.PhotoStore
+import io.github.rakasans.foodapp.data.ocr.OcrEngine
+import io.github.rakasans.foodapp.share.ShareInbox
 import io.github.rakasans.foodapp.data.repository.RecipeRepository
 import io.github.rakasans.foodapp.data.repository.TagRepository
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +28,8 @@ class AppContainer(context: Context) {
     val tags = TagRepository(db, auth, clock)
     val recipes = RecipeRepository(db, auth, clock, categories, tags)
     val photos = PhotoStore(context)
+    val ocr = OcrEngine(context)
+    val shareInbox = ShareInbox()
 }
 
 class FoodApp : Application() {

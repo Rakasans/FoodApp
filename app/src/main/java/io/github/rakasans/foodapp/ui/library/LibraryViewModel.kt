@@ -30,9 +30,12 @@ data class RecipeCardUi(
     val meta: String,
     val tags: List<String>,
     val badges: List<BadgeUi>,
-    val isDraft: Boolean = false,
+    val target: OpenTarget = OpenTarget.DETAIL,
     val updatedText: String = "",
 )
+
+/** Dokąd prowadzi stuknięcie karty. */
+enum class OpenTarget { DETAIL, EDITOR, MATERIAL }
 
 data class LibraryFilters(
     val query: String = "",
@@ -128,7 +131,7 @@ class LibraryViewModel(
                     ProcessingState.RUNNING -> add(BadgeUi("Przetwarzanie…", BadgeKind.INFO))
                     ProcessingState.ERROR -> add(BadgeUi("Import nieudany — materiał zachowany", BadgeKind.DANGER))
                     ProcessingState.NEEDS_SCREENSHOT -> add(BadgeUi("Rolka — dodaj zrzut opisu", BadgeKind.INFO))
-                    ProcessingState.NONE -> Unit
+                    ProcessingState.NONE -> add(BadgeUi("Link zapisany — do uzupełnienia", BadgeKind.INFO))
                 }
                 RecipeStatus.DRAFT -> add(BadgeUi("Szkic — do przejrzenia", BadgeKind.WARN))
                 RecipeStatus.APPROVED -> {
@@ -148,7 +151,11 @@ class LibraryViewModel(
             meta = listOf(categoryText, sourceLabel(r.sourceType)).joinToString(" · "),
             tags = s.tags.map { it.name },
             badges = badges,
-            isDraft = r.status == RecipeStatus.DRAFT,
+            target = when (r.status) {
+                RecipeStatus.DRAFT -> OpenTarget.EDITOR
+                RecipeStatus.MATERIAL -> OpenTarget.MATERIAL
+                RecipeStatus.APPROVED -> OpenTarget.DETAIL
+            },
             updatedText = "Zaktualizowano: " + formatUpdated(r.updatedAt, System.currentTimeMillis()),
         )
     }

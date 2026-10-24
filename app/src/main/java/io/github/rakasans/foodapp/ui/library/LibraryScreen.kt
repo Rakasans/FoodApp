@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel,
-    onOpenRecipe: (id: String, isDraft: Boolean) -> Unit,
+    onOpenRecipe: (id: String, target: OpenTarget) -> Unit,
     onAddRecipe: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -148,7 +148,7 @@ fun LibraryScreen(
                         card = card,
                         selected = isSelected,
                         onClick = {
-                            if (state.selectionMode) viewModel.toggleSelection(card.id) else onOpenRecipe(card.id, card.isDraft)
+                            if (state.selectionMode) viewModel.toggleSelection(card.id) else onOpenRecipe(card.id, card.target)
                         },
                         onLongClick = { viewModel.toggleSelection(card.id) },
                     )

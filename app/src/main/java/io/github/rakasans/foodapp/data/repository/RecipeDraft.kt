@@ -1,6 +1,7 @@
 package io.github.rakasans.foodapp.data.repository
 
 import io.github.rakasans.foodapp.core.Ids
+import io.github.rakasans.foodapp.data.local.MaterialKind
 import io.github.rakasans.foodapp.data.local.RecipeDetails
 import io.github.rakasans.foodapp.data.local.RecipeStatus
 import io.github.rakasans.foodapp.data.local.SourceType
@@ -53,7 +54,14 @@ data class RecipeDraft(
     val steps: List<DraftStep> = listOf(DraftStep()),
     val categoryIds: Set<String> = emptySet(),
     val tagNames: List<String> = emptyList(),
+    // Tylko do odczytu w edytorze — zapis ich nie zmienia (zostają w rekordzie).
+    val materialKind: MaterialKind = MaterialKind.NONE,
+    val materialText: String? = null,
+    val materialNote: String? = null,
 ) {
+    /** Szkic z importu (nie wpisany ręcznie) — edytor prosi o sprawdzenie pól. */
+    val isImported: Boolean get() = sourceType != SourceType.MANUAL
+
     /** Czy użytkownik cokolwiek wpisał — pusty szkic nie jest zapisywany. */
     val hasContent: Boolean
         get() = name.isNotBlank() || notes.isNotBlank() || photoPath != null ||
@@ -75,13 +83,18 @@ data class RecipeDraft(
             ingredients = d.ingredients.sortedBy { it.position }.map {
                 DraftIngredient(
                     id = it.id, rawText = it.rawText, name = it.name, quantity = it.quantity, unit = it.unit,
-                    noQuantity = it.noQuantity, unitInferred = it.unitInferred, manuallyCorrected = true,
+                    noQuantity = it.noQuantity, unitInferred = it.unitInferred,
+                    // w zatwierdzonym przepisie pola mogły być poprawione ręcznie — nie nadpisujemy ich przy zmianie zapisu
+                    manuallyCorrected = d.recipe.status == RecipeStatus.APPROVED,
                     groupName = it.groupName,
                 )
             }.ifEmpty { listOf(DraftIngredient()) },
             steps = d.steps.sortedBy { it.position }.map { DraftStep(it.id, it.text) }.ifEmpty { listOf(DraftStep()) },
             categoryIds = d.categories.map { it.id }.toSet(),
             tagNames = d.tags.map { it.name },
+            materialKind = d.recipe.materialKind,
+            materialText = d.recipe.materialText,
+            materialNote = d.recipe.materialNote,
         )
     }
 }

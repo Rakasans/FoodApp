@@ -15,6 +15,11 @@ import io.github.rakasans.foodapp.data.local.RecipeEntity
 import io.github.rakasans.foodapp.data.local.RecipeStatus
 import io.github.rakasans.foodapp.data.local.RecipeTagCrossRef
 import io.github.rakasans.foodapp.data.local.StepEntity
+import io.github.rakasans.foodapp.data.local.MaterialKind
+import io.github.rakasans.foodapp.data.local.ProcessingState
+import io.github.rakasans.foodapp.data.local.SourceType
+import io.github.rakasans.foodapp.domain.IngredientParser
+import io.github.rakasans.foodapp.domain.ParsedRecipeText
 import io.github.rakasans.foodapp.domain.DuplicateRules
 import io.github.rakasans.foodapp.domain.ExistingRecipe
 import io.github.rakasans.foodapp.domain.normalizeName
@@ -86,6 +91,118 @@ class RecipeRepository(
     fun observeDetails(id: String): Flow<RecipeDetails?> = db.recipeDao().observeDetails(id)
 
     suspend fun loadDraft(id: String): RecipeDraft? = db.recipeDao().getDetails(id)?.let(RecipeDraft::from)
+
+    suspend fun getRecipe(id: String): RecipeEntity? = db.recipeDao().getRecipe(id)
+
+    // ---------- Materiały (v0.2) ----------
+
+    /**
+     * Zapisuje materiał bez przepisu: rolkę z Instagrama (czeka na zrzut opisu) albo link do strony
+     * (import ze stron — v0.3). Materiał od razu jest w bibliotece i daje się wyszukać po notatce.
+     */
+    suspend fun saveLinkMaterial(url: String, note: String?, instagram: Boolean): String {
+        val now = clock.now()
+        val id = Ids.new()
+        val cleanNote = note?.trim()?.ifBlank { null }
+        db.recipeDao().upsertRecipe(
+            RecipeEntity(
+                id = id, ownerId = auth.currentUser.value.id,
+                status = RecipeStatus.MATERIAL,
+                processing = if (instagram) ProcessingState.NEEDS_SCREENSHOT else ProcessingState.NONE,
+                name = when {
+                    cleanNote != null -> (if (instagram) "Rolka: " else "Link: ") + cleanNote
+                    instagram -> "Rolka z Instagrama"
+                    else -> "Link: " + url.removePrefix("https://").removePrefix("http://").removePrefix("www.").take(40)
+                },
+                sourceType = if (instagram) SourceType.INSTAGRAM_REEL else SourceType.WEB,
+                sourceUrl = url,
+                materialKind = if (instagram) MaterialKind.INSTAGRAM_LINK else MaterialKind.LINK,
+                materialText = url,
+                materialNote = cleanNote,
+                createdAt = now, updatedAt = now,
+            )
+        )
+        return id
+    }
+
+    /**
+     * Tworzy szkic z rozpoznanego tekstu (wklejony tekst, OCR, opis rolki).
+     * @param existingId materiał, który zamieniamy w szkic (np. zapisana rolka) — zachowuje link i notatkę.
+     * Oryginalny tekst zostaje w `materialText`; puste pola zostają puste.
+     */
+    suspend fun createDraftFromText(
+        parsed: ParsedRecipeText,
+        originalText: String,
+        sourceType: SourceType,
+        materialKind: MaterialKind,
+        materialUri: String? = null,
+        existingId: String? = null,
+    ): String {
+        val now = clock.now()
+        val owner = auth.currentUser.value.id
+        val id = existingId ?: Ids.new()
+        db.withTransaction {
+            val dao = db.recipeDao()
+            val existing = existingId?.let { dao.getRecipe(it) }
+            val isReel = existing?.materialKind == MaterialKind.INSTAGRAM_LINK
+            val base = existing ?: RecipeEntity(id = id, ownerId = owner, status = RecipeStatus.DRAFT, name = "", createdAt = now, updatedAt = now)
+            dao.upsertRecipe(
+                base.copy(
+                    status = RecipeStatus.DRAFT,
+                    processing = ProcessingState.NONE,
+                    name = parsed.name,
+                    servings = parsed.servings,
+                    sourceType = sourceType,
+                    materialKind = materialKind,
+                    materialText = if (isReel) existing?.materialText else originalText,
+                    // tekst z OCR zachowujemy w notatce materiału, gdy materialText to już link rolki
+                    materialNote = existing?.materialNote,
+                    materialUri = materialUri ?: existing?.materialUri,
+                    notes = if (isReel) "Tekst z opisu rolki:\n$originalText" else base.notes,
+                    updatedAt = now,
+                    deletedAt = null,
+                )
+            )
+            dao.deleteIngredients(id)
+            dao.upsertIngredients(parsed.ingredients.mapIndexed { index, line ->
+                val p = IngredientParser.parse(line.raw)
+                IngredientEntity(
+                    id = Ids.new(), recipeId = id, position = index, groupName = line.group,
+                    rawText = line.raw, name = p.name.ifBlank { line.raw }, quantity = p.quantity, unit = p.unit,
+                    unitInferred = p.unitInferred,
+                )
+            })
+            dao.deleteSteps(id)
+            dao.upsertSteps(parsed.steps.mapIndexed { index, s -> StepEntity(Ids.new(), id, index, s) })
+        }
+        return id
+    }
+
+    /** „Wprowadź ręcznie” z materiału: pusty szkic, który zachowuje źródło (link, notatkę, zdjęcie). */
+    suspend fun materialToEmptyDraft(id: String) {
+        val r = db.recipeDao().getRecipe(id) ?: return
+        db.recipeDao().upsertRecipe(
+            r.copy(
+                status = RecipeStatus.DRAFT, processing = ProcessingState.NONE,
+                name = "", updatedAt = clock.now(),
+            )
+        )
+    }
+
+    /** Nowy pusty szkic z podanym źródłem (np. link do strony wpisywany ręcznie). */
+    suspend fun createEmptyDraft(sourceType: SourceType, sourceUrl: String?): String {
+        val now = clock.now()
+        val id = Ids.new()
+        db.recipeDao().upsertRecipe(
+            RecipeEntity(
+                id = id, ownerId = auth.currentUser.value.id, status = RecipeStatus.DRAFT, name = "",
+                sourceType = sourceType, sourceUrl = sourceUrl,
+                materialKind = if (sourceUrl != null) MaterialKind.LINK else MaterialKind.NONE, materialText = sourceUrl,
+                createdAt = now, updatedAt = now,
+            )
+        )
+        return id
+    }
 
     /**
      * Zapisuje przepis z edytora w jednej transakcji. Pola spoza edytora (materiał źródłowy,

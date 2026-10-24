@@ -54,6 +54,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    // OCR na urządzeniu, model dołączony (offline) — decyzja 5
+    implementation(libs.mlkit.text.recognition)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

@@ -97,5 +97,16 @@ Te reguły są czystym Kotlinem w `domain/` — łatwe do testowania bez Android
 4. ✅ Szczegóły przepisu (oryginalny zapis składników, źródło, informacje dodatkowe, zdjęcie).
 5. ✅ Testy reguł domenowych (parser, lista zakupów, kompletność, duplikaty).
 
+## 8. v0.2 — import przepisów
+
+- Parser tekstu przepisu (`domain/RecipeTextParser`): nagłówki, grupy składników, numeracja kroków, porcje,
+  emoji i hashtagi z opisów rolek. Linie nieprzypisane są pomijane, oryginał zostaje w `materialText`.
+- Rolki z Instagrama: link + notatka „od kogo” → materiał w bibliotece (szukany po notatce); zrzut opisu → OCR → szkic
+  przypięty do tej samej rolki.
+- Linki do stron: zapis na później albo ręczne wpisanie z linkiem jako źródłem (automatyczny import — v0.3).
+- OCR: ML Kit z modelem w aplikacji (offline), zdjęcie z aparatu (FileProvider, bez uprawnienia CAMERA) lub galerii;
+  rozpoznany tekst do poprawienia przed utworzeniem szkicu.
+- „Udostępnij → Zapisz w FoodApp”: tekst/link → import linku lub tekstu, obraz → OCR.
+
 Znane uproszczenia v0.1: zdjęcie tylko z galerii (aparat — v0.2), grupy składników zachowywane, ale nieedytowalne,
 stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
