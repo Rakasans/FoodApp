@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import io.github.rakasans.foodapp.AppContainer
 import io.github.rakasans.foodapp.data.instagram.ReelImporter
+import io.github.rakasans.foodapp.data.web.WebImporter
 import io.github.rakasans.foodapp.data.local.MaterialKind
 import io.github.rakasans.foodapp.data.local.ProcessingState
 import io.github.rakasans.foodapp.data.local.RecipeEntity
@@ -93,19 +94,34 @@ fun LinkImportScreen(
         }
     }
 
-    fun retry(id: String) {
+    fun startWeb() {
         reel = ReelState.Working
         scope.launch {
-            reel = when (val r = container.reels.process(id)) {
-                is ReelImporter.Result.Draft -> { onOpenEditor(r.id); ReelState.Idle }
-                is ReelImporter.Result.Waiting -> ReelState.Waiting(r.id)
-                is ReelImporter.Result.Failed -> ReelState.Failed(r.id, r.reason)
+            reel = when (val r = container.web.import(clean, note)) {
+                is WebImporter.Result.Draft -> { onOpenEditor(r.id); ReelState.Idle }
+                is WebImporter.Result.Waiting -> ReelState.Waiting(r.id)
+                is WebImporter.Result.Failed -> ReelState.Failed(r.id, r.reason)
             }
         }
     }
 
-    // Z „Udostępnij”: rolka importuje się od razu, bez dodatkowych kliknięć.
-    LaunchedEffect(Unit) { if (fromShare && instagram) startReel() }
+    fun retry(id: String) {
+        reel = ReelState.Working
+        scope.launch {
+            reel = if (instagram) when (val r = container.reels.process(id)) {
+                is ReelImporter.Result.Draft -> { onOpenEditor(r.id); ReelState.Idle }
+                is ReelImporter.Result.Waiting -> ReelState.Waiting(r.id)
+                is ReelImporter.Result.Failed -> ReelState.Failed(r.id, r.reason)
+            } else when (val r = container.web.process(id)) {
+                is WebImporter.Result.Draft -> { onOpenEditor(r.id); ReelState.Idle }
+                is WebImporter.Result.Waiting -> ReelState.Waiting(r.id)
+                is WebImporter.Result.Failed -> ReelState.Failed(r.id, r.reason)
+            }
+        }
+    }
+
+    // Z „Udostępnij”: rolka albo strona importuje się od razu, bez dodatkowych kliknięć.
+    LaunchedEffect(Unit) { if (fromShare && valid) { if (instagram) startReel() else startWeb() } }
 
     ImportColumn {
         when (val st = reel) {
@@ -123,40 +139,48 @@ fun LinkImportScreen(
                     )
                     Button(onClick = ::startReel, modifier = Modifier.fillMaxWidth()) { Text("Importuj rolkę") }
                 } else if (valid) {
-                    NoticeCard(BadgeKind.INFO) {
-                        Text("Strona z przepisem", fontWeight = FontWeight.Bold)
-                        Text("Automatyczny import ze stron pojawi się w v0.3. Teraz możesz zapisać link na później albo od razu wpisać przepis — link zostanie jako źródło.")
-                    }
+                    Text(
+                        "Pobierzemy przepis ze strony (składniki, kroki, zdjęcie) i utworzymy szkic do sprawdzenia. " +
+                            "Bez internetu link poczeka i pobierze się po połączeniu.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     OutlinedTextField(
                         value = note, onValueChange = { note = it }, label = { Text("Notatka (opcjonalnie)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
                     )
-                    Button(onClick = {
+                    Button(onClick = ::startWeb, modifier = Modifier.fillMaxWidth()) { Text("Importuj przepis ze strony") }
+                    OutlinedButton(onClick = {
                         scope.launch { onOpenEditor(container.recipes.createEmptyDraft(SourceType.WEB, clean)) }
                     }, modifier = Modifier.fillMaxWidth()) { Text("Wprowadź przepis ręcznie") }
-                    OutlinedButton(onClick = {
-                        scope.launch { container.recipes.saveLinkMaterial(clean, note, instagram = false); onSaved() }
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Zapisz link na później") }
                 }
             }
             ReelState.Working -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 CircularProgressIndicator()
-                Text("Pobieram opis rolki…")
+                Text(if (instagram) "Pobieram opis rolki…" else "Pobieram przepis ze strony…")
             }
             is ReelState.Waiting -> {
                 NoticeCard(BadgeKind.INFO) {
-                    Text("Rolka zapisana", fontWeight = FontWeight.Bold)
-                    Text("Brak internetu. Opis pobierze się automatycznie, gdy telefon połączy się z siecią — szkic pojawi się w „Moich przepisach”.")
+                    Text(if (instagram) "Rolka zapisana" else "Link zapisany", fontWeight = FontWeight.Bold)
+                    Text("Brak internetu. Przepis pobierze się automatycznie, gdy telefon połączy się z siecią — szkic pojawi się w „Moich przepisach”.")
                 }
                 NoteField(note, { note = it }) { scope.launch { container.recipes.setMaterialNote(st.id, note); onSaved() } }
             }
             is ReelState.Failed -> {
                 NoticeCard(BadgeKind.WARN) {
                     Text(st.reason, fontWeight = FontWeight.Bold)
-                    Text("Rolka jest zapisana w „Moich przepisach”. Możesz spróbować ponownie albo dodać zrzut ekranu opisu.")
+                    Text(
+                        if (instagram) "Rolka jest zapisana w „Moich przepisach”. Możesz spróbować ponownie albo dodać zrzut ekranu opisu."
+                        else "Link jest zapisany w „Moich przepisach”. Możesz spróbować ponownie albo wpisać przepis ręcznie — link zostanie jako źródło."
+                    )
                 }
                 Button(onClick = { retry(st.id) }, modifier = Modifier.fillMaxWidth()) { Text("Spróbuj ponownie") }
-                OutlinedButton(onClick = { onOpenOcrForReel(st.id) }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
+                if (instagram) {
+                    OutlinedButton(onClick = { onOpenOcrForReel(st.id) }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
+                } else {
+                    OutlinedButton(onClick = {
+                        scope.launch { container.recipes.materialToEmptyDraft(st.id); onOpenEditor(st.id) }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Wprowadź przepis ręcznie") }
+                }
                 NoteField(note, { note = it }) { scope.launch { container.recipes.setMaterialNote(st.id, note); onSaved() } }
             }
         }
@@ -363,7 +387,11 @@ fun MaterialScreen(
                     "Rolka czeka na internet — opis pobierze się automatycznie po połączeniu."
                 else if (reel)
                     "Rolka jest zapisana. Pobierz opis z Instagrama albo dodaj zrzut ekranu opisu."
-                else "Link jest zapisany. Automatyczny import ze stron pojawi się w v0.3 — teraz możesz wpisać przepis ręcznie."
+                else if (r.processing == ProcessingState.WAITING_NETWORK)
+                    "Link czeka na internet — przepis pobierze się automatycznie po połączeniu."
+                else if (r.processing == ProcessingState.ERROR)
+                    "Nie udało się odczytać przepisu z tej strony. Spróbuj ponownie albo wpisz przepis ręcznie."
+                else "Link jest zapisany. Pobierz przepis ze strony albo wpisz go ręcznie."
             )
         }
         if (reel) {
@@ -386,6 +414,26 @@ fun MaterialScreen(
             ) { Text(if (fetching) "Pobieram opis…" else "Pobierz opis z Instagrama") }
             fetchError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             OutlinedButton(onClick = { onAddScreenshot(id) }, modifier = Modifier.fillMaxWidth()) { Text("Dodaj zrzut ekranu opisu") }
+        }
+        if (!reel) {
+            var fetching by remember { mutableStateOf(false) }
+            var fetchError by remember { mutableStateOf<String?>(null) }
+            Button(
+                enabled = !fetching,
+                onClick = {
+                    fetching = true
+                    scope.launch {
+                        when (val res = container.web.process(id)) {
+                            is WebImporter.Result.Draft -> onOpenEditor(res.id)
+                            is WebImporter.Result.Waiting -> fetchError = "Brak internetu — przepis pobierze się po połączeniu."
+                            is WebImporter.Result.Failed -> fetchError = res.reason
+                        }
+                        fetching = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (fetching) "Pobieram przepis…" else "Pobierz przepis ze strony") }
+            fetchError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
         r.sourceUrl?.let { url ->
             OutlinedButton(onClick = {

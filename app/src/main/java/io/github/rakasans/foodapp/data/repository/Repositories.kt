@@ -21,6 +21,9 @@ import io.github.rakasans.foodapp.data.local.SourceType
 import io.github.rakasans.foodapp.domain.IngredientParser
 import io.github.rakasans.foodapp.domain.ParsedRecipeText
 import io.github.rakasans.foodapp.domain.InstagramPost
+import io.github.rakasans.foodapp.domain.WebRecipe
+import io.github.rakasans.foodapp.data.local.InfoOrigin
+import io.github.rakasans.foodapp.data.local.NutritionValueEntity
 import io.github.rakasans.foodapp.domain.RecipeTextParser
 import io.github.rakasans.foodapp.domain.DuplicateRules
 import io.github.rakasans.foodapp.domain.ExistingRecipe
@@ -230,6 +233,54 @@ class RecipeRepository(
             })
             dao.deleteSteps(id)
             dao.upsertSteps(parsed.steps.mapIndexed { index, s -> StepEntity(Ids.new(), id, index, s) })
+        }
+    }
+
+    suspend fun waitingWebIds(): List<String> = db.recipeDao().waitingWebIds()
+
+    /**
+     * Szkic z danych strukturalnych strony (schema.org/Recipe). Bierzemy tylko to, co strona podała;
+     * wartości odżywcze z podstawą „1 porcja” (tak definiuje je schema.org), oryginał w materialText.
+     */
+    suspend fun createDraftFromWeb(id: String, recipe: WebRecipe, photoPath: String?) {
+        val now = clock.now()
+        db.withTransaction {
+            val dao = db.recipeDao()
+            val r = dao.getRecipe(id) ?: return@withTransaction
+            val url = r.sourceUrl.orEmpty()
+            dao.upsertRecipe(
+                r.copy(
+                    status = RecipeStatus.DRAFT,
+                    processing = ProcessingState.NONE,
+                    name = recipe.name,
+                    servings = recipe.servings,
+                    yieldText = recipe.yieldText,
+                    prepTime = recipe.prepTime,
+                    cookTime = recipe.cookTime,
+                    photoUri = photoPath ?: r.photoUri,
+                    sourceType = SourceType.WEB,
+                    sourceAuthor = recipe.author ?: r.sourceAuthor,
+                    materialText = recipe.originalText(url),
+                    nutritionOrigin = if (recipe.nutrition.isNotEmpty()) InfoOrigin.SOURCE else InfoOrigin.NONE,
+                    nutritionBasis = recipe.nutritionBasis,
+                    updatedAt = now,
+                )
+            )
+            dao.deleteIngredients(id)
+            dao.upsertIngredients(recipe.ingredients.mapIndexed { index, raw ->
+                val p = IngredientParser.parse(raw)
+                IngredientEntity(
+                    id = Ids.new(), recipeId = id, position = index,
+                    rawText = raw, name = p.name.ifBlank { raw }, quantity = p.quantity, quantityMax = p.quantityMax, unit = p.unit,
+                    unitInferred = p.unitInferred,
+                )
+            })
+            dao.deleteSteps(id)
+            dao.upsertSteps(recipe.steps.mapIndexed { index, s -> StepEntity(Ids.new(), id, index, s) })
+            dao.deleteNutrition(id)
+            dao.upsertNutrition(recipe.nutrition.mapIndexed { index, (label, value) ->
+                NutritionValueEntity(Ids.new(), id, index, label, value)
+            })
         }
     }
 

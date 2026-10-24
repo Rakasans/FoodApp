@@ -22,4 +22,12 @@ class LinksTest {
         assertTrue(isInstagramUrl("https://instagram.com/p/XYZ"))
         assertFalse(isInstagramUrl("https://example.com/instagram.com/"))
     }
+
+    @Test
+    fun `udostepniony link a tekst przepisu z linkiem`() {
+        assertTrue(isLinkShare("Zupa krem z dyni - Kwestia Smaku https://www.kwestiasmaku.com/przepis/zupa-dyniowa"))
+        val recipe = "200ml oleju\n20g gochugaru\n15g chili\n".repeat(10) + "Źródło: https://example.pl/przepis"
+        assertFalse(isLinkShare(recipe))
+        assertFalse(isLinkShare("Brak linku w tekście"))
+    }
 }

@@ -70,6 +70,9 @@ interface RecipeDao {
     @Query("SELECT id FROM recipe WHERE deletedAt IS NULL AND status = 'MATERIAL' AND processing = 'WAITING_NETWORK' AND materialKind = 'INSTAGRAM_LINK'")
     suspend fun waitingReelIds(): List<String>
 
+    @Query("SELECT id FROM recipe WHERE deletedAt IS NULL AND status = 'MATERIAL' AND processing = 'WAITING_NETWORK' AND materialKind = 'LINK'")
+    suspend fun waitingWebIds(): List<String>
+
     @Query("SELECT id, name FROM recipe WHERE deletedAt IS NULL")
     suspend fun activeNames(): List<RecipeNameRow>
 

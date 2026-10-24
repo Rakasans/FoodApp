@@ -56,7 +56,7 @@ import io.github.rakasans.foodapp.ui.importing.MaterialScreen
 import io.github.rakasans.foodapp.ui.importing.OcrImportScreen
 import io.github.rakasans.foodapp.ui.importing.OcrMode
 import io.github.rakasans.foodapp.ui.importing.TextImportScreen
-import io.github.rakasans.foodapp.domain.extractUrl
+import io.github.rakasans.foodapp.domain.isLinkShare
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
@@ -137,7 +137,7 @@ fun FoodAppNavHost(container: AppContainer) {
         val s = shared ?: return@LaunchedEffect
         val target = when {
             s.imageUri != null -> Routes.importOcr(OcrMode.PHOTO, share = s.token)
-            s.text != null && extractUrl(s.text) != null -> Routes.importLink(share = s.token)
+            s.text != null && isLinkShare(s.text) -> Routes.importLink(share = s.token)
             else -> Routes.importText(share = s.token)
         }
         nav.navigate(target) { popUpTo(Routes.LIBRARY) }
