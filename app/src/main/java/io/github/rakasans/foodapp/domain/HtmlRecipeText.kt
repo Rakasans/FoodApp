@@ -20,13 +20,18 @@ object HtmlRecipeText {
         RegexOption.IGNORE_CASE,
     )
     private val ANY_TAG = Regex("""<[^>]+>""")
+    private val PARAGRAPH = Regex("""</?p\b[^>]*>""", RegexOption.IGNORE_CASE)
+    /** Znacznik granicy akapitu w liście linii. */
+    private const val PARA = "\u00B6"
+    private val SERVINGS_LINE = Regex("""^\d+(\s*[-–]\s*\d+)?\s*(porcj\w*|osób|osoby)\s*$""", RegexOption.IGNORE_CASE)
+    private val STEP_START = Regex("""^\d{1,2}\s*[.)]\s+\S""")
 
     private val INGREDIENT_HEADER = Regex("""^(składniki|skladniki|potrzebne składniki|lista składników)\b.{0,40}$""", RegexOption.IGNORE_CASE)
     /** Tu kończy się przepis, a zaczynają komentarze, polecane, stopka. */
     private val END = Regex(
         """^(komentarz|komentarze|dodaj komentarz|skomentuj|podobne przepisy|zobacz (też|również|także)|polecane|""" +
             """przeczytaj (też|również)|może cię zainteresować|może ci się spodobać|newsletter|udostępnij|tagi\b|""" +
-            """oceń przepis|twoja ocena|©|copyright|zostaw komentarz|inne przepisy|rady\b|rady/porady|porady\b|wskazówki\b)""",
+            """oceń przepis|twoja ocena|©|copyright|zostaw komentarz|inne przepisy|nie zapomnij|wasz,|smacznego[!.]?$|rady\b|rady/porady|porady\b|wskazówki\b)""",
         RegexOption.IGNORE_CASE,
     )
     private const val MAX_LINES = 150
@@ -36,6 +41,8 @@ object HtmlRecipeText {
         val body = html.substringAfter("<body", html)
         var s = COMMENTS.replace(body, " ")
         REMOVE_BLOCKS.forEach { s = it.replace(s, "\n") }
+        // granice akapitów zachowujemy jako znacznik — pierwsza linia akapitu bywa nazwą grupy („Kopytka”, „Do podania”)
+        s = PARAGRAPH.replace(s, "\n$PARA\n")
         s = BLOCK_TAGS.replace(s, "\n")
         s = ANY_TAG.replace(s, " ")
         val out = mutableListOf<String>()
@@ -43,14 +50,17 @@ object HtmlRecipeText {
             val line = raw.replace(Regex("""[ \t]+"""), " ").trim()
             if (line.isNotEmpty() && line != out.lastOrNull()) out += line
         }
-        return out
+        return out.dropWhile { it == PARA }
     }
 
     fun extract(html: String): Extract? {
         val lines = visibleLines(html)
         if (lines.isEmpty()) return null
 
-        val headerAt = lines.indexOfFirst { INGREDIENT_HEADER.matches(it) }
+        val headerAt = lines.indexOfFirst { INGREDIENT_HEADER.matches(it) }.let { h ->
+            // „Składniki:” z przycisku „Kopiuj” itp. stoi zwykle po liście — liczy się tylko taki, po którym są składniki
+            if (h >= 0 && lines.drop(h + 1).filter { it != PARA }.take(3).count(::isIngredientLine) >= 2) h else -1
+        }
         val start: Int
         val prefix: List<String>
         if (headerAt >= 0) {
@@ -63,9 +73,30 @@ object HtmlRecipeText {
         }
         val tail = lines.drop(start)
         val endAt = tail.indexOfFirst { END.containsMatchIn(it) }.let { if (it <= 0) tail.size else it }
-        val slice = prefix + tail.take(minOf(endAt, MAX_LINES))
+        val slice = markGroups(prefix + tail.take(minOf(endAt, MAX_LINES)))
         if (slice.size < 3) return null
         return Extract(title(html).orEmpty(), slice.joinToString("\n"))
+    }
+
+    /**
+     * W części ze składnikami: krótka linia bez ilości na początku akapitu (albo po „4 porcje”),
+     * po której idą co najmniej dwie krótkie linie, to nazwa grupy — dostaje dwukropek („Kopytka:”, „Do podania:”).
+     */
+    private fun markGroups(lines: List<String>): List<String> {
+        val out = mutableListOf<String>()
+        var inSteps = false
+        lines.forEachIndexed { k, line ->
+            if (line == PARA) return@forEachIndexed
+            if (!inSteps && (line.length > 70 || STEP_START.containsMatchIn(line))) inSteps = true
+            val prev = lines.getOrNull(k - 1)
+            val atStart = k == 0 || prev == PARA || (prev != null && SERVINGS_LINE.matches(prev))
+            val following = lines.drop(k + 1).takeWhile { it != PARA }
+            val isHeader = !inSteps && atStart && line.length <= 40 && !line.endsWith(":") && !line.endsWith(".") &&
+                line.first().isLetter() && !line.contains(',') && IngredientParser.parse(line).quantity == null &&
+                following.size >= 2 && following.take(4).all { it.length <= 80 && !it.endsWith(".") }
+            out += if (isHeader) "$line:" else line
+        }
+        return out
     }
 
     /** Początek najdłuższego ciągu linii z ilością (dopuszczamy jedną „dziurę”, np. nazwę grupy). Min. 4 linie. */
@@ -74,12 +105,13 @@ object HtmlRecipeText {
         var bestLen = 0
         var i = 0
         while (i < lines.size) {
-            if (!isIngredientLine(lines[i])) { i++; continue }
+            if (lines[i] == PARA || !isIngredientLine(lines[i])) { i++; continue }
             val s = i
             var count = 0
             var gap = 0
             var j = i
             while (j < lines.size) {
+                if (lines[j] == PARA) { j++; continue }
                 if (isIngredientLine(lines[j])) { count++; gap = 0 }
                 else if (++gap > 1) break
                 j++

@@ -20,6 +20,10 @@ data class WebRecipe(
     val groups: List<String?> = emptyList(),
     /** Fragment tekstu strony, gdy przepis odczytano z treści (brak danych strukturalnych). */
     val pageText: String? = null,
+    /** Rozpoznanie składnika z osobnych pól strony (nazwa / ilość); null = rozpoznaj z zapisu. */
+    val hints: List<ParsedIngredient?> = emptyList(),
+    /** Porady autora przy krokach — nie są krokami; zostają tylko w oryginale. */
+    val tips: List<String> = emptyList(),
 ) {
     /** Oryginał do zachowania przy przepisie: to, co strona podała, bez zmian w treści. */
     fun originalText(url: String): String = pageText?.let { "Tekst ze strony (bez danych strukturalnych):\n\n$it\n\nŹródło: $url" } ?: buildString {
@@ -29,7 +33,13 @@ data class WebRecipe(
         cookTime?.let { appendLine("Gotowanie: $it") }
         if (ingredients.isNotEmpty()) {
             appendLine().appendLine("Składniki:")
-            ingredients.forEach { appendLine("- $it") }
+            var lastGroup: String? = null
+            ingredients.forEachIndexed { i, it ->
+                val g = groups.getOrNull(i)
+                if (g != null && g != lastGroup) appendLine("$g:")
+                lastGroup = g
+                appendLine("- $it")
+            }
         }
         if (steps.isNotEmpty()) {
             appendLine().appendLine("Sposób przygotowania:")
@@ -38,6 +48,10 @@ data class WebRecipe(
         if (nutrition.isNotEmpty()) {
             appendLine().appendLine("Wartości odżywcze (${nutritionBasis ?: "1 porcja"}):")
             nutrition.forEach { (k, v) -> appendLine("$k: $v") }
+        }
+        if (tips.isNotEmpty()) {
+            appendLine().appendLine("Porady ze strony:")
+            tips.forEach { appendLine("- $it") }
         }
         appendLine().append("Źródło: $url")
     }.trim()
@@ -56,7 +70,141 @@ object WebRecipePage {
     )
 
     /** Najpierw dane strukturalne, potem treść strony. */
-    fun parse(html: String): WebRecipe? = parseStructured(html) ?: parseText(html)
+    fun parse(html: String): WebRecipe? = parseStructured(html) ?: parseMicrodata(html) ?: parseText(html)
+
+    // ---------- mikrodane (itemprop), np. AniaGotuje
+
+    fun parseMicrodata(html: String): WebRecipe? {
+        if (!html.contains("schema.org/Recipe", ignoreCase = true)) return null
+        val root = MiniHtml.parse(html)
+        val recipe = root.descendants().firstOrNull {
+            it.has("itemscope") && it.attr("itemtype")?.substringAfterLast('/')?.equals("Recipe", ignoreCase = true) == true
+        } ?: return null
+        val p = props(recipe)
+
+        val ingredientNodes = p["recipeIngredient"].orEmpty() + p["ingredients"].orEmpty()
+        val ingredients = ingredientNodes.map { it.text().replace('\n', ' ').trim() }
+        val groups = ingredientNodes.map { groupOf(it, recipe) }
+        val hints = ingredientNodes.map(::hintOf)
+
+        val tips = mutableListOf<String>()
+        val steps = p["recipeInstructions"].orEmpty().flatMap { microSteps(it, tips) }
+        val name = p["name"]?.firstOrNull()?.let(::value).orEmpty()
+        if (ingredients.isEmpty() && steps.isEmpty()) return null
+
+        val (servings, yieldText) = yieldOf(p["recipeYield"]?.map(::value))
+        val nutritionNode = p["nutrition"]?.firstOrNull()
+        val (nutrition, basis) = nutritionNode?.let(::microNutrition) ?: (emptyList<Pair<String, String>>() to null)
+        val author = p["author"]?.firstOrNull()?.let { a ->
+            if (a.has("itemscope")) props(a)["name"]?.firstOrNull()?.let(::value) else value(a)
+        }?.ifBlank { null }
+        return WebRecipe(
+            name = name,
+            servings = servings,
+            yieldText = yieldText,
+            ingredients = ingredients,
+            steps = steps,
+            imageUrl = p["image"]?.map(::value)?.firstOrNull { it.startsWith("http") } ?: meta(html, "og:image"),
+            author = author,
+            prepTime = p["prepTime"]?.firstOrNull()?.let(::value)?.let(::duration),
+            cookTime = p["cookTime"]?.firstOrNull()?.let(::value)?.let(::duration),
+            nutrition = nutrition,
+            nutritionBasis = basis,
+            groups = groups,
+            hints = hints,
+            tips = tips,
+        )
+    }
+
+    /** Właściwości należące do danego zakresu itemscope (bez zagnieżdżonych zakresów). */
+    private fun props(scope: HtmlNode): Map<String, List<HtmlNode>> {
+        val out = LinkedHashMap<String, MutableList<HtmlNode>>()
+        fun walk(n: HtmlNode) {
+            for (c in n.elements) {
+                c.attr("itemprop")?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }?.forEach { out.getOrPut(it) { mutableListOf() } += c }
+                if (!c.has("itemscope")) walk(c)
+            }
+        }
+        walk(scope)
+        return out
+    }
+
+    private fun value(n: HtmlNode): String = when (n.tag) {
+        "meta" -> n.attr("content").orEmpty()
+        "link", "a" -> n.attr("href") ?: n.text()
+        "img" -> n.attr("src").orEmpty()
+        "time" -> n.attr("datetime") ?: n.text()
+        "data" -> n.attr("value") ?: n.text()
+        else -> n.attr("content") ?: n.text()
+    }.trim()
+
+    private fun isTip(n: HtmlNode): Boolean =
+        n.classes.any { c -> TIP_CLASS.any { c.contains(it, ignoreCase = true) } } ||
+            (n.tag == "p" && TIP_TEXT.containsMatchIn(n.text().take(20)))
+
+    private val TIP_CLASS = listOf("tip", "porad", "hint", "note", "uwag", "wskazow")
+    private val TIP_TEXT = Regex("""^(porada|wskazówka|uwaga|tip)\b""", RegexOption.IGNORE_CASE)
+
+    private fun microSteps(node: HtmlNode, tips: MutableList<String>): List<String> {
+        if (!node.has("itemscope")) {
+            collectTips(node, tips)
+            return node.text(::isTip).lines().filter { it.isNotBlank() }
+        }
+        val sp = props(node)
+        sp["itemListElement"]?.let { items -> return items.flatMap { microSteps(it, tips) } } // HowToSection
+        val textNode = sp["text"]?.firstOrNull()
+        val text = (textNode ?: node).let { collectTips(it, tips); it.text(::isTip) }
+            .let { t -> if (textNode == null) t.lines().filterNot { l -> sp["name"]?.any { value(it) == l } == true }.joinToString("\n") else t }
+            .trim()
+        val name = sp["name"]?.firstOrNull()?.let(::value)?.trim().orEmpty()
+        return when {
+            text.isEmpty() && name.isEmpty() -> emptyList()
+            text.isEmpty() -> listOf(name)
+            name.isEmpty() || text.startsWith(name) -> listOf(text)
+            else -> listOf("$name\n$text")
+        }
+    }
+
+    private fun collectTips(n: HtmlNode, tips: MutableList<String>) {
+        n.descendants().filter(::isTip).forEach { t -> t.text().replace('\n', ' ').trim().takeIf { it.isNotEmpty() }?.let { tips += it } }
+    }
+
+    /** Nazwa grupy składników: nagłówek najbliższego kontenera „grupy”. Sam nagłówek „Składniki” = brak grupy. */
+    private fun groupOf(ing: HtmlNode, recipe: HtmlNode): String? {
+        val container = ing.ancestors().takeWhile { it !== recipe }
+            .firstOrNull { a -> a.classes.any { it.contains("group", ignoreCase = true) } } ?: return null
+        val header = container.descendants().firstOrNull { d ->
+            d.tag in setOf("h2", "h3", "h4", "h5", "strong", "b", "legend") ||
+                d.classes.any { it.contains("header", true) || it.contains("title", true) }
+        } ?: return null
+        if (header.descendants().any { it.has("itemprop") }) return null
+        val text = header.text().replace('\n', ' ').trim().trimEnd(':').trim()
+        return text.takeUnless { it.isEmpty() || it.equals("Składniki", ignoreCase = true) }
+    }
+
+    /** Strona podaje nazwę i ilość w osobnych polach („pieprz mielony” + „pół płaskiej łyżeczki”). */
+    private fun hintOf(ing: HtmlNode): ParsedIngredient? {
+        val nameNode = ing.descendants().firstOrNull { d -> d.classes.any { it.contains("name", true) } } ?: return null
+        val qtyNode = ing.descendants().firstOrNull { d ->
+            d.classes.any { it.contains("qty", true) || it.contains("amount", true) || it.contains("quantity", true) }
+        } ?: return null
+        val name = nameNode.text().replace('\n', ' ').trim()
+        val q = IngredientParser.parse(qtyNode.text().replace('\n', ' ').trim())
+        if (name.isEmpty() || q.quantity == null) return null
+        return q.copy(name = name)
+    }
+
+    private fun microNutrition(n: HtmlNode): Pair<List<Pair<String, String>>, String?> {
+        val np = props(n)
+        val values = NUTRITION_LABELS.mapNotNull { (key, label) ->
+            np[key]?.firstOrNull()?.let(::value)?.takeIf { it.isNotBlank() }?.let { label to it }
+        }
+        if (values.isEmpty()) return values to null
+        // „W 100 g zupy:” — podstawa podana na stronie ma pierwszeństwo przed domyślną porcją
+        val basis = Regex("""(?:^|\s)(?:w|na)\s+(\d+\s*(?:g|ml|porcj\w*)[^:\n]{0,30}):""", RegexOption.IGNORE_CASE)
+            .find(n.text())?.groupValues?.get(1)?.trim()
+        return values to (basis ?: "1 porcja")
+    }
 
     /** Plan B: przepis z widocznej treści strony (nagłówek „Składniki” albo lista z ilościami). */
     fun parseText(html: String): WebRecipe? {
@@ -150,6 +298,7 @@ object WebRecipePage {
     }
 
     private fun yieldOf(v: Any?): Pair<Int?, String?> {
+        if (v is List<*> && v.isEmpty()) return null to null
         val all = strings(v).map(::clean).filter { it.isNotEmpty() }
         if (all.isEmpty()) return null to null
         all.forEach { s ->

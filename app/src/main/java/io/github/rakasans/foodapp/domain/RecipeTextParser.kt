@@ -30,13 +30,19 @@ object RecipeTextParser {
         RegexOption.IGNORE_CASE,
     )
     private val SERVINGS = listOf(
-        Regex("""\b(?:porcj\w*|liczba porcji|dla)\s*[:\-]?\s*(\d{1,2})\b""", RegexOption.IGNORE_CASE),
-        Regex("""\b(\d{1,2})\s*(?:porcj\w*|osób|osoby|os\.)""", RegexOption.IGNORE_CASE),
+        // tylko w tej samej linii („Porcje: 4”), nie „4 porcje” + następna linia „1 cebula”
+        Regex("""\b(?:porcj\w*|liczba porcji|dla)[ \t]*[:\-]?[ \t]*(\d{1,2})\b""", RegexOption.IGNORE_CASE),
+        // „2 – 3 porcje” to zakres — nie wybieramy za użytkownika jednej liczby
+        Regex("""(?<!\d\s{0,2}[-–]\s{0,2})\b(\d{1,2})\s*(?:porcj\w*|osób|osoby|os\.)""", RegexOption.IGNORE_CASE),
     )
     private val STEP_NUMBER = Regex("""^(?:krok\s*)?(\d{1,2})\s*[.):\-]\s*(.+)$""", RegexOption.IGNORE_CASE)
     private val BULLET = Regex("""^[-•*–·▪✓✔]\s*""")
     private val HASHTAGS_ONLY = Regex("""^(#\S+\s*)+$""")
-    private val META_LINE = Regex("""^(porcj|czas|kcal|liczba porcji)""", RegexOption.IGNORE_CASE)
+    /** Linie z informacjami o przepisie, nie składniki: „Porcje: 4”, „4 porcje”, „2 – 3 porcje”, „Czas: 30 min”. */
+    private val META_LINE = Regex(
+        """^(porcj|czas|kcal|liczba porcji|\d+(\s*[-–]\s*\d+)?\s*(porcj\w*|osób|osoby|os\.)\s*$)""",
+        RegexOption.IGNORE_CASE,
+    )
     private val SIGN_OFF = Regex("""\s*\b(smacznego|enjoy|bon app[ée]tit)\b[!.\s]*$""", RegexOption.IGNORE_CASE)
 
     /** Długość, powyżej której linia bez ilości to już opis przygotowania, a nie składnik. */

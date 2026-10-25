@@ -69,6 +69,8 @@ object IngredientParser {
     private val UNIT_ADJECTIVES = setOf(
         "płaska", "płaskie", "płaskich", "czubata", "czubate", "czubatych", "kopiasta", "kopiaste",
         "pełna", "pełne", "pełnych", "duża", "duże", "dużych", "mała", "małe", "małych", "średnia", "średnie", "średnich",
+        // dopełniacz: „pół płaskiej łyżeczki”, „pół dużej szklanki”
+        "płaskiej", "czubatej", "kopiastej", "pełnej", "dużej", "małej", "średniej",
     )
     /** Liczba po tych słowach to oznaczenie, nie ilość („mąka typ 650”, „makaron nr 5”). */
     private val NOT_QUANTITY_BEFORE = setOf("typ", "typu", "nr", "numer", "rozmiar", "rozm")

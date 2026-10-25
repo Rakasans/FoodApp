@@ -153,3 +153,13 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
 - `IngredientParser`: „karczek wołowy 1 kg”, „cebule 300 g - 2 sztuki”, „1 ¼ szklanki”, „1 płaska łyżeczka”; jednostka gałązka.
 - Pobieranie strony: przeglądarka mobilna, a przy odmowie desktopowa.
 - Sekcja „Źródło”: „Otwórz rolkę / Otwórz stronę” i „Pokaż oryginał” w jednym rzędzie, ten sam styl (`ui/common/SourceActions`).
+
+## v0.3.2 — mikrodane i lepszy odczyt treści stron
+
+- Kolejność odczytu strony: JSON-LD schema.org/Recipe → **mikrodane** (`itemprop`, np. AniaGotuje) → treść strony.
+  Mikrodane czyta `domain/MiniHtml` (prosty parser drzewa HTML, czysty Kotlin): grupy składników z nagłówków sekcji,
+  nazwa i ilość z osobnych pól, kroki HowToStep bez porad autora (porady trafiają do oryginału, nie do kroków),
+  podstawa wartości odżywczych ze strony („100 g zupy”).
+- Treść strony (np. Rozkoszny): „4 porcje” to liczba porcji, „2 – 3 porcje” nie jest zgadywane; krótka linia na początku
+  akapitu listy składników to grupa („Kopytka”, „Do podania”); koniec przepisu przy „Rady/porady”, „Nie zapomnij…”, „Wasz,”.
+- Testy na wycinkach prawdziwych stron: `app/src/test/resources/web`.

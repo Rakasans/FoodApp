@@ -270,7 +270,8 @@ class RecipeRepository(
             )
             dao.deleteIngredients(id)
             dao.upsertIngredients(recipe.ingredients.mapIndexed { index, raw ->
-                val p = IngredientParser.parse(raw)
+                // strona z osobnymi polami nazwa/ilość daje pewniejsze rozpoznanie niż sam zapis
+                val p = recipe.hints.getOrNull(index) ?: IngredientParser.parse(raw)
                 IngredientEntity(
                     id = Ids.new(), recipeId = id, position = index, groupName = recipe.groups.getOrNull(index),
                     rawText = raw, name = p.name.ifBlank { raw }, quantity = p.quantity, quantityMax = p.quantityMax, unit = p.unit,
