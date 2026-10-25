@@ -441,7 +441,7 @@ fun MaterialScreen(
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                 } catch (_: ActivityNotFoundException) {
                 }
-            }, modifier = Modifier.fillMaxWidth()) { Text(if (reel) "Otwórz w Instagramie" else "Otwórz stronę") }
+            }, modifier = Modifier.fillMaxWidth()) { Text(if (reel) "Otwórz rolkę" else "Otwórz stronę") }
         }
         OutlinedButton(onClick = {
             scope.launch { container.recipes.materialToEmptyDraft(id); onOpenEditor(id) }

@@ -45,6 +45,7 @@ object IngredientParser {
         add("kostka", "kostka", "kostki", "kostek", "kostkę")
         add("pałka", "pałka", "pałki", "pałek", "pałkę")
         add("laska", "laska", "laski", "lasek", "laskę")
+        add("gałązka", "gałązka", "gałązki", "gałązek", "gałązkę")
         add("ziarenko", "ziarenko", "ziarenka", "ziarenek", "ziarno", "ziarna", "ziaren")
         add("gwiazdka", "gwiazdka", "gwiazdki", "gwiazdek", "gwiazdkę")
     }
@@ -57,8 +58,18 @@ object IngredientParser {
     private val MIXED = Regex("""^(\d+)\s+(\d+)\s*/\s*(\d+)\s*(.*)$""")
     private val FRACTION = Regex("""^(\d+)\s*/\s*(\d+)\s*(.*)$""")
     private val DECIMAL = Regex("""^($NUM)\s*(.*)$""")
-    /** Ilość na końcu: „Sezam - 10g”, „Liść laurowy 3”, „Cynamon 1 pałka”, „Anyż gwiazdki 2 sztuki”. */
-    private val TRAILING = Regex("""^(\p{L}[\p{L}\s]*?)\s*[-–—:]?\s*($NUM)\s*(\p{L}+\.?)?$""")
+    /** „1 ¼ szklanki” — liczba całkowita i ułamek jako znak. */
+    private val MIXED_UNICODE = Regex("""^(\d+)\s*([½¼¾⅓⅔])\s*(.*)$""")
+    /**
+     * Ilość na końcu: „Sezam - 10g”, „Liść laurowy 3”, „Cynamon 1 pałka”, „karczek wołowy 1 kg”,
+     * „cebule 300 g - 2 sztuki” (dopisek po myślniku/przecinku/nawiasie zostaje tylko w zapisie oryginalnym).
+     */
+    private val TRAILING = Regex("""^(\p{L}[\p{L}\s.,]*?)\s*[-–—:]?\s*($NUM)\s*(\p{L}+\.?)?(\s*[-–—,(].*)?$""")
+    /** Przymiotniki przed jednostką: „1 płaska łyżeczka”, „2 czubate łyżki”. */
+    private val UNIT_ADJECTIVES = setOf(
+        "płaska", "płaskie", "płaskich", "czubata", "czubate", "czubatych", "kopiasta", "kopiaste",
+        "pełna", "pełne", "pełnych", "duża", "duże", "dużych", "mała", "małe", "małych", "średnia", "średnie", "średnich",
+    )
     /** Liczba po tych słowach to oznaczenie, nie ilość („mąka typ 650”, „makaron nr 5”). */
     private val NOT_QUANTITY_BEFORE = setOf("typ", "typu", "nr", "numer", "rozmiar", "rozm")
 
@@ -87,6 +98,9 @@ object IngredientParser {
             val denominator = m.groupValues[2].toDouble()
             if (denominator > 0) return withQuantity(m.groupValues[1].toDouble() / denominator, m.groupValues[3], text)
         }
+        MIXED_UNICODE.matchEntire(text)?.let { m ->
+            return withQuantity(m.groupValues[1].toDouble() + FRACTIONS.getValue(m.groupValues[2][0]), m.groupValues[3], text)
+        }
         FRACTIONS[text.first()]?.let { q -> return withQuantity(q, text.drop(1), text) }
         DECIMAL.matchEntire(text)?.let { m ->
             return withQuantity(m.groupValues[1].replace(',', '.').toDouble(), m.groupValues[2], text)
@@ -100,12 +114,13 @@ object IngredientParser {
 
     private fun trailing(text: String): ParsedIngredient? {
         val m = TRAILING.matchEntire(text) ?: return null
-        val name = m.groupValues[1].trim()
+        val name = m.groupValues[1].trim().trimEnd(',', '.').trim()
+        if (name.isEmpty()) return null
         val words = name.split(Regex("\\s+"))
         if (words.size > 4 || words.last().lowercase() in NOT_QUANTITY_BEFORE) return null
         val q = m.groupValues[2].replace(',', '.').toDouble()
         val unitToken = m.groupValues[3]
-        if (unitToken.isEmpty()) return ParsedIngredient(name, q, "szt.", unitInferred = true)
+        if (unitToken.isEmpty()) return if (m.groupValues[4].isBlank()) ParsedIngredient(name, q, "szt.", unitInferred = true) else null
         val unit = UNITS[unitToken.lowercase().trimEnd('.')] ?: return null
         return ParsedIngredient(name, q, unit)
     }
@@ -122,6 +137,12 @@ object IngredientParser {
         val trimmed = text.trim()
         val token = trimmed.substringBefore(' ')
         val unit = UNITS[token.lowercase().trimEnd('.')]
-        return if (unit != null) unit to trimmed.substringAfter(' ', "").trim() else null to trimmed
+        if (unit != null) return unit to trimmed.substringAfter(' ', "").trim()
+        if (token.lowercase() in UNIT_ADJECTIVES) {
+            val afterAdj = trimmed.substringAfter(' ', "").trim()
+            val next = afterAdj.substringBefore(' ')
+            UNITS[next.lowercase().trimEnd('.')]?.let { return it to afterAdj.substringAfter(' ', "").trim() }
+        }
+        return null to trimmed
     }
 }

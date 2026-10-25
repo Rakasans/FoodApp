@@ -1,6 +1,6 @@
 package io.github.rakasans.foodapp.ui.editor
 
-import io.github.rakasans.foodapp.ui.common.OpenOriginalButton
+import io.github.rakasans.foodapp.ui.common.SourceActions
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -266,7 +266,6 @@ fun EditorScreen(
         // Zatwierdzonego przepisu oryginał jest w trybie przeglądania, w sekcji „Źródło”.
         val original = d.materialText
         if (!original.isNullOrBlank() && !state.editingApproved) {
-            var showOriginal by rememberSaveable { mutableStateOf(false) }
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -276,11 +275,7 @@ fun EditorScreen(
                     SectionLabel("Źródło i oryginalny materiał")
                     d.materialNote?.let { Text("Notatka: $it") }
                     d.sourceUrl?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                    OpenOriginalButton(d.sourceUrl)
-                    TextButton(onClick = { showOriginal = !showOriginal }) {
-                        Text(if (showOriginal) "Ukryj oryginał" else "Pokaż oryginał")
-                    }
-                    if (showOriginal) Text(original, style = MaterialTheme.typography.bodySmall)
+                    SourceActions(d.sourceUrl, original.takeIf { it.trim() != d.sourceUrl?.trim() })
                 }
             }
         }

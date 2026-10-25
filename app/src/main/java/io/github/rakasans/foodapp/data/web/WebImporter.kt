@@ -58,7 +58,11 @@ class WebImporter(
         }
         saveDebug("web_last.html", html)
         val parsed: WebRecipe? = runCatching { WebRecipePage.parse(html) }.getOrNull()
-        Log.d(TAG, "url=$url length=${html.length} recipe=${parsed != null} ingredients=${parsed?.ingredients?.size}")
+        Log.d(
+            TAG,
+            "url=$url length=${html.length} ldjson=${html.contains("application/ld+json")} recipe=${parsed != null} " +
+                "fromText=${parsed?.pageText != null} ingredients=${parsed?.ingredients?.size} steps=${parsed?.steps?.size}",
+        )
         if (parsed == null) {
             recipes.setProcessing(id, ProcessingState.ERROR)
             return Result.Failed(id, "Ta strona nie udostępnia przepisu w formie, którą umiemy odczytać.")
@@ -73,18 +77,24 @@ class WebImporter(
         recipes.waitingWebIds().forEach { process(it) }
     }
 
-    private suspend fun get(url: String): String? = withContext(Dispatchers.IO) {
+    /** Niektóre serwisy odrzucają przeglądarkę mobilną albo desktopową — próbujemy obu. */
+    private suspend fun get(url: String): String? {
+        for (agent in listOf(UA, UA_DESKTOP)) get(url, agent)?.let { return it }
+        return null
+    }
+
+    private suspend fun get(url: String, agent: String): String? = withContext(Dispatchers.IO) {
         runCatching {
             val c = URL(url).openConnection() as HttpURLConnection
             c.connectTimeout = 10_000
             c.readTimeout = 20_000
             c.instanceFollowRedirects = true
-            c.setRequestProperty("User-Agent", UA)
+            c.setRequestProperty("User-Agent", agent)
             c.setRequestProperty("Accept", "text/html,application/xhtml+xml")
             c.setRequestProperty("Accept-Language", "pl-PL,pl;q=0.9,en;q=0.8")
             try {
                 if (c.responseCode != 200) {
-                    Log.d(TAG, "HTTP ${c.responseCode} for $url")
+                    Log.d(TAG, "HTTP ${c.responseCode} for $url (ua=${agent.take(30)})")
                     return@runCatching null
                 }
                 val charset = Regex("charset=([\\w-]+)", RegexOption.IGNORE_CASE).find(c.contentType.orEmpty())
@@ -122,5 +132,7 @@ class WebImporter(
         const val TAG = "WebImporter"
         const val UA =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
+        const val UA_DESKTOP =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     }
 }

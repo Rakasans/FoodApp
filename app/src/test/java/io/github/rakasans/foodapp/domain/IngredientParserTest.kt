@@ -117,4 +117,24 @@ class IngredientParserTest {
         assertEquals("szt.", p("3 szt. jabłek").unit)
         assertEquals("opak.", p("1 op. drożdży").unit)
     }
+
+    @Test
+    fun `zapis ze stron ania gotuje i rozkoszny`() {
+        val karczek = p("karczek wołowy 1 kg")
+        assertEquals("karczek wołowy", karczek.name); assertEquals(1.0, karczek.quantity!!, 1e-9); assertEquals("kg", karczek.unit)
+        val dynia = p("dynia np. piżmowa 650 g - miąższ pokrojony w kostkę")
+        assertEquals("dynia np. piżmowa", dynia.name); assertEquals(650.0, dynia.quantity!!, 1e-9); assertEquals("g", dynia.unit)
+        val cebule = p("cebule 300 g - 2 sztuki")
+        assertEquals("cebule", cebule.name); assertEquals(300.0, cebule.quantity!!, 1e-9)
+        val cukier = p("1 ¼ szklanki (250 g) cukru")
+        assertEquals(1.25, cukier.quantity!!, 1e-9); assertEquals("szklanka", cukier.unit)
+        val sol = p("1 płaska łyżeczka drobnej soli morskiej")
+        assertEquals("łyżeczka", sol.unit); assertEquals("drobnej soli morskiej", sol.name)
+    }
+
+    @Test
+    fun `zdanie z liczba w srodku nie dostaje ilosci z konca`() {
+        assertEquals(null, p("Piecz w 180 stopni przez 20 minut").quantity)
+        assertEquals(null, p("Gotuj 5 minut na małym ogniu").quantity)
+    }
 }

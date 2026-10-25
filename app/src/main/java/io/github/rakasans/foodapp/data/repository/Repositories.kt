@@ -272,7 +272,7 @@ class RecipeRepository(
             dao.upsertIngredients(recipe.ingredients.mapIndexed { index, raw ->
                 val p = IngredientParser.parse(raw)
                 IngredientEntity(
-                    id = Ids.new(), recipeId = id, position = index,
+                    id = Ids.new(), recipeId = id, position = index, groupName = recipe.groups.getOrNull(index),
                     rawText = raw, name = p.name.ifBlank { raw }, quantity = p.quantity, quantityMax = p.quantityMax, unit = p.unit,
                     unitInferred = p.unitInferred,
                 )

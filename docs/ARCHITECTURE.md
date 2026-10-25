@@ -144,3 +144,12 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
 - **Kopia zapasowa** (`domain/Backup`, `data/backup/BackupManager`): ZIP z `recipes.json` (format jawny, z wersją)
   i `photos/`. Przywracanie dokłada brakujące przepisy po identyfikatorze — niczego nie nadpisuje.
 - Baza w wersji 3: `shopping_part.quantityMax` (migracja 2→3).
+
+## v0.3.1 — import z treści strony, przyciski źródła
+
+- Plan B importu ze stron bez schema.org (`domain/HtmlRecipeText`): widoczny tekst strony (bez menu, stopki, skryptów),
+  start od nagłówka „Składniki” albo od najdłuższego ciągu linii z ilościami, koniec przy komentarzach / polecanych / radach.
+  Fragment trafia do `RecipeTextParser`, a jego treść — do oryginału przepisu („Tekst ze strony…”).
+- `IngredientParser`: „karczek wołowy 1 kg”, „cebule 300 g - 2 sztuki”, „1 ¼ szklanki”, „1 płaska łyżeczka”; jednostka gałązka.
+- Pobieranie strony: przeglądarka mobilna, a przy odmowie desktopowa.
+- Sekcja „Źródło”: „Otwórz rolkę / Otwórz stronę” i „Pokaż oryginał” w jednym rzędzie, ten sam styl (`ui/common/SourceActions`).

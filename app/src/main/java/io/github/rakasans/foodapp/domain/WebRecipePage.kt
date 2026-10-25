@@ -16,9 +16,13 @@ data class WebRecipe(
     val nutrition: List<Pair<String, String>>,
     /** Podstawa wartości odżywczych; schema.org podaje je na porcję. */
     val nutritionBasis: String?,
+    /** Grupy składników (równolegle do [ingredients]); puste, gdy strona ich nie podała. */
+    val groups: List<String?> = emptyList(),
+    /** Fragment tekstu strony, gdy przepis odczytano z treści (brak danych strukturalnych). */
+    val pageText: String? = null,
 ) {
     /** Oryginał do zachowania przy przepisie: to, co strona podała, bez zmian w treści. */
-    fun originalText(url: String): String = buildString {
+    fun originalText(url: String): String = pageText?.let { "Tekst ze strony (bez danych strukturalnych):\n\n$it\n\nŹródło: $url" } ?: buildString {
         if (name.isNotBlank()) appendLine(name).appendLine()
         (servings?.let { "Porcje: $it" } ?: yieldText?.let { "Wydajność: $it" })?.let { appendLine(it) }
         prepTime?.let { appendLine("Przygotowanie: $it") }
@@ -51,7 +55,32 @@ object WebRecipePage {
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
     )
 
-    fun parse(html: String): WebRecipe? {
+    /** Najpierw dane strukturalne, potem treść strony. */
+    fun parse(html: String): WebRecipe? = parseStructured(html) ?: parseText(html)
+
+    /** Plan B: przepis z widocznej treści strony (nagłówek „Składniki” albo lista z ilościami). */
+    fun parseText(html: String): WebRecipe? {
+        val e = HtmlRecipeText.extract(html) ?: return null
+        val p = RecipeTextParser.parse(e.text)
+        if (p.ingredients.size < 2) return null
+        return WebRecipe(
+            name = e.title.ifBlank { p.name },
+            servings = p.servings,
+            yieldText = null,
+            ingredients = p.ingredients.map { it.raw },
+            steps = p.steps,
+            imageUrl = meta(html, "og:image"),
+            author = null,
+            prepTime = null,
+            cookTime = null,
+            nutrition = emptyList(),
+            nutritionBasis = null,
+            groups = p.ingredients.map { it.group },
+            pageText = e.text,
+        )
+    }
+
+    fun parseStructured(html: String): WebRecipe? {
         val node = LD_JSON.findAll(html)
             .mapNotNull { MiniJson.parseOrNull(it.groupValues[1].trim()) }
             .flatMap { findRecipes(it) }

@@ -5,7 +5,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.selection.SelectionContainer
-import io.github.rakasans.foodapp.ui.common.OpenOriginalButton
+import io.github.rakasans.foodapp.ui.common.SourceActions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -156,19 +156,9 @@ fun DetailScreen(
             r.sourceUrl?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            OpenOriginalButton(r.sourceUrl)
-            // Oryginalny tekst (opis rolki, wklejony tekst, OCR) — tylko do odczytu.
-            r.materialText?.takeIf { it.isNotBlank() }?.let { original ->
-                var showOriginal by rememberSaveable { mutableStateOf(false) }
-                TextButton(onClick = { showOriginal = !showOriginal }) {
-                    Text(if (showOriginal) "Ukryj oryginał" else "Pokaż oryginał")
-                }
-                if (showOriginal) {
-                    SelectionContainer {
-                        Text(original, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
+            // „Otwórz rolkę/stronę” i „Pokaż oryginał” w jednym rzędzie; oryginał tylko do odczytu.
+            // Gdy oryginał to sam link (przepis wpisany ręcznie), nie ma czego pokazywać.
+            SourceActions(r.sourceUrl, r.materialText?.takeIf { it.trim() != r.sourceUrl?.trim() })
         }
 
         HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.outlineVariant)
