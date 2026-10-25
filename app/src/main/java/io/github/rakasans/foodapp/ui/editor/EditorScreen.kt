@@ -192,8 +192,18 @@ fun EditorScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        d.ingredients.forEach { ing ->
+        val allGroups = d.ingredients.mapNotNull { it.groupName }.distinct()
+        d.ingredients.forEachIndexed { index, ing ->
+            // nagłówek grupy, gdy zmienia się grupa (np. „Sos”, „Do podania”)
+            val prevGroup = d.ingredients.getOrNull(index - 1)?.groupName
+            if (ing.groupName != null && ing.groupName != prevGroup) {
+                Text(ing.groupName, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            } else if (ing.groupName == null && prevGroup != null) {
+                Text("Bez grupy", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             IngredientRow(
+                groups = allGroups,
+                onGroup = { viewModel.setIngredientGroup(ing.id, it) },
                 ing = ing,
                 correcting = ing.id in state.correcting,
                 onText = { viewModel.setIngredientText(ing.id, it) },
@@ -319,6 +329,8 @@ fun EditorScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IngredientRow(
+    groups: List<String>,
+    onGroup: (String?) -> Unit,
     ing: DraftIngredient,
     correcting: Boolean,
     onText: (String) -> Unit,
@@ -382,6 +394,21 @@ private fun IngredientRow(
                             value = ing.unit.orEmpty(), onValueChange = { onCorrect(null, null, it) },
                             label = { Text("Jedn.") }, singleLine = true, modifier = Modifier.weight(1f),
                         )
+                    }
+                    var groupText by remember(ing.id) { mutableStateOf(ing.groupName.orEmpty()) }
+                    OutlinedTextField(
+                        value = groupText, onValueChange = { groupText = it; onGroup(it) },
+                        label = { Text("Grupa (opcjonalnie)") }, placeholder = { Text("np. Sos, Do podania") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    val others = groups.filter { it != ing.groupName }
+                    if (others.isNotEmpty() || ing.groupName != null) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            others.forEach { g -> FilterChip(selected = false, onClick = { groupText = g; onGroup(g) }, label = { Text(g) }) }
+                            if (ing.groupName != null) {
+                                FilterChip(selected = false, onClick = { groupText = ""; onGroup(null) }, label = { Text("Bez grupy") })
+                            }
+                        }
                     }
                 }
             }

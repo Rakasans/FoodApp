@@ -108,4 +108,15 @@ class ShoppingMergeTest {
         assertEquals("szt.", parts.single().unit)
         assertEquals(2.0, parts.single().quantity!!, 1e-9)
     }
+
+    @Test
+    fun `grupy opcjonalne rozpoznane po nazwie`() {
+        assertTrue(ShoppingBuilder.isOptionalGroup("Dodatki opcjonalne"))
+        assertTrue(ShoppingBuilder.isOptionalGroup("Do podania"))
+        assertFalse(ShoppingBuilder.isOptionalGroup("Sos kurkowy + dodatki")) // sos to część dania
+        assertTrue(ShoppingBuilder.isOptionalGroup("Dodatki"))
+        assertFalse(ShoppingBuilder.isOptionalGroup("Składniki na zupę"))
+        assertFalse(ShoppingBuilder.isOptionalGroup("Kopytka"))
+        assertFalse(ShoppingBuilder.isOptionalGroup(null))
+    }
 }

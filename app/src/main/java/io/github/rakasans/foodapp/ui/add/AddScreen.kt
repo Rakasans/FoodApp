@@ -28,6 +28,7 @@ fun AddScreen(
     onScreenshot: () -> Unit,
     onText: () -> Unit,
     onPhoto: () -> Unit,
+    onDictation: () -> Unit,
 ) {
     val methods = listOf(
         Method("Link do rolki lub strony", "Rolkę z Instagrama zapiszesz z notatką „od kogo”; przepis ze zrzutu opisu.", null, onLink),
@@ -35,7 +36,7 @@ fun AddScreen(
         Method("Wklej tekst", "Tekst zamieniony w szkic; oryginał zostaje przy przepisie.", null, onText),
         Method("Zdjęcie przepisu", "Np. strona z czasopisma — aparat albo galeria.", null, onPhoto),
         Method("Wpisz ręcznie", "Pusty formularz przepisu.", null, onManual),
-        Method("Dyktowanie", "Nagraj, popraw transkrypcję, utwórz szkic.", "Wkrótce: v0.4", null),
+        Method("Dyktowanie", "Podyktuj przepis, popraw transkrypcję, utwórz szkic.", null, onDictation),
     )
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),

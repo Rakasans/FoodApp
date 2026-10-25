@@ -101,6 +101,8 @@ class RecipeRepository(
 
     suspend fun getDetails(id: String): RecipeDetails? = db.recipeDao().getDetails(id)
 
+    suspend fun referencedFiles(): Set<String> = db.recipeDao().referencedFiles().toSet()
+
     // ---------- Materiały (v0.2) ----------
 
     /**
@@ -375,7 +377,10 @@ class RecipeRepository(
     suspend fun restore(ids: List<String>) = db.recipeDao().restore(ids, clock.now())
 
     suspend fun existingRecipes(): List<ExistingRecipe> =
-        db.recipeDao().activeNames().map { ExistingRecipe(it.id, it.name) }
+        db.recipeDao().activeNames().map { ExistingRecipe(it.id, it.name, it.sourceUrl, it.status == RecipeStatus.MATERIAL) }
+
+    /** Przepisy (i zapisane linki) z tym samym źródłem — przed ponownym importem rolki lub strony. */
+    suspend fun findBySource(url: String): List<ExistingRecipe> = DuplicateRules.findSameSource(url, existingRecipes())
 
     /** Nazwy przepisów demonstracyjnych, które już są w bibliotece. */
     suspend fun demoDuplicates(): List<String> =

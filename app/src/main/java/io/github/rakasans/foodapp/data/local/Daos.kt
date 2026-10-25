@@ -32,6 +32,10 @@ interface RecipeDao {
     @Query("SELECT * FROM recipe WHERE deletedAt IS NULL")
     suspend fun allDetails(): List<RecipeDetails>
 
+    /** Wszystkie pliki, do których odwołują się przepisy (także usunięte miękko). */
+    @Query("SELECT photoUri FROM recipe WHERE photoUri IS NOT NULL UNION SELECT materialUri FROM recipe WHERE materialUri IS NOT NULL")
+    suspend fun referencedFiles(): List<String>
+
     @Upsert
     suspend fun upsertRecipe(recipe: RecipeEntity)
 
@@ -77,7 +81,7 @@ interface RecipeDao {
     @Query("SELECT id FROM recipe WHERE deletedAt IS NULL AND status = 'MATERIAL' AND processing = 'WAITING_NETWORK' AND materialKind = 'LINK'")
     suspend fun waitingWebIds(): List<String>
 
-    @Query("SELECT id, name FROM recipe WHERE deletedAt IS NULL")
+    @Query("SELECT id, name, sourceUrl, status FROM recipe WHERE deletedAt IS NULL")
     suspend fun activeNames(): List<RecipeNameRow>
 
     @Query("UPDATE recipe SET deletedAt = :now, updatedAt = :now WHERE id IN (:ids)")
@@ -87,7 +91,7 @@ interface RecipeDao {
     suspend fun restore(ids: List<String>, now: Long)
 }
 
-data class RecipeNameRow(val id: String, val name: String)
+data class RecipeNameRow(val id: String, val name: String, val sourceUrl: String?, val status: RecipeStatus)
 
 @Dao
 interface CategoryDao {

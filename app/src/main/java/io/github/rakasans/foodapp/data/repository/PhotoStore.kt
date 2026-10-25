@@ -37,6 +37,19 @@ class PhotoStore(private val context: Context) {
         if (path != null && path.startsWith(dir.absolutePath)) File(path).delete()
     }
 
+    /**
+     * Usuwa pliki zdjęć, do których nie odwołuje się żaden przepis (także usunięty — można go jeszcze przywrócić).
+     * Pomija pliki młodsze niż [minAgeMs] — mogą należeć do importu, który właśnie trwa.
+     * Zwraca liczbę usuniętych plików.
+     */
+    suspend fun cleanup(referenced: Set<String>, minAgeMs: Long = 24 * 60 * 60 * 1000L): Int = withContext(Dispatchers.IO) {
+        val keep = referenced.map { it.removePrefix("file://") }.toSet()
+        val now = System.currentTimeMillis()
+        dir.listFiles().orEmpty()
+            .filter { it.isFile && it.absolutePath !in keep && now - it.lastModified() > minAgeMs }
+            .count { it.delete() }
+    }
+
     /** Wczytuje pomniejszony podgląd z uwzględnieniem obrotu z EXIF. */
     suspend fun loadPreview(path: String, maxSizePx: Int = 1280): Bitmap? = withContext(Dispatchers.IO) {
         runCatching {

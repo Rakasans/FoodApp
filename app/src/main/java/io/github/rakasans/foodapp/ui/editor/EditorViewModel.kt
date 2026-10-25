@@ -158,7 +158,14 @@ class EditorViewModel(
         })
     }
 
-    fun addIngredient() = edit { it.copy(ingredients = it.ingredients + DraftIngredient()) }
+    /** Nowy składnik trafia do grupy ostatniego (np. dopisujesz kolejny składnik sosu). */
+    fun addIngredient() = edit { it.copy(ingredients = it.ingredients + DraftIngredient(groupName = it.ingredients.lastOrNull()?.groupName)) }
+
+    /** Grupa składnika („Sos”, „Do podania”); pusta = bez grupy. */
+    fun setIngredientGroup(id: String, group: String?) = edit { d ->
+        val clean = group?.trim()?.trimEnd(':')?.trim()?.ifBlank { null }
+        d.copy(ingredients = d.ingredients.map { if (it.id == id) it.copy(groupName = clean) else it })
+    }
     fun removeIngredient(id: String) = edit { d ->
         d.copy(ingredients = d.ingredients.filterNot { it.id == id }.ifEmpty { listOf(DraftIngredient()) })
     }

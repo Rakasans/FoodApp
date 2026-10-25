@@ -33,4 +33,25 @@ class DuplicateRulesTest {
         assertEquals(listOf("Zupa krem z dyni"), dup)
         assertEquals(listOf("Pierniki świąteczne"), fresh)
     }
+
+    @Test
+    fun `ten sam adres zrodla mimo roznic w zapisie`() {
+        val existing = listOf(
+            ExistingRecipe("1", "Gulasz", "https://aniagotuje.pl/przepis/gulasz-wolowy-z-dynia"),
+            ExistingRecipe("2", "Kluski", "https://www.instagram.com/reel/DPx1AbCdEfG/"),
+            ExistingRecipe("3", "Ręczny", null),
+        )
+        assertEquals(listOf("1"), DuplicateRules.findSameSource("https://www.aniagotuje.pl/przepis/gulasz-wolowy-z-dynia/?utm_source=fb#skladniki", existing).map { it.id })
+        assertEquals(listOf("2"), DuplicateRules.findSameSource("https://instagram.com/p/DPx1AbCdEfG/?igsh=abc123", existing).map { it.id })
+        assertTrue(DuplicateRules.findSameSource("https://aniagotuje.pl/przepis/gulasz-z-dynia", existing).isEmpty())
+        assertTrue(DuplicateRules.findSameSource("https://www.instagram.com/reel/INNYKOD123/", existing).isEmpty())
+    }
+
+    @Test
+    fun `parametry inne niz sledzace odrozniaja strony`() {
+        val a = DuplicateRules.sourceKey("https://example.pl/przepis?id=5&utm_medium=x")
+        val b = DuplicateRules.sourceKey("https://example.pl/przepis?id=6")
+        assertEquals("example.pl/przepis?id=5", a)
+        assertTrue(a != b)
+    }
 }

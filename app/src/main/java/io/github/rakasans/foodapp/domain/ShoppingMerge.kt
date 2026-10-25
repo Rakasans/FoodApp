@@ -109,6 +109,15 @@ data class IngredientForShopping(
  */
 object ShoppingBuilder {
 
+    /**
+     * Grupy, które są propozycją, a nie częścią dania („Dodatki opcjonalne”, „Do podania”, „Do dekoracji”).
+     * Na liście zakupów są domyślnie pominięte — użytkownik może je włączyć.
+     */
+    fun isOptionalGroup(group: String?): Boolean =
+        group != null && OPTIONAL.containsMatchIn(group)
+
+    private val OPTIONAL = Regex("""opcjonaln|do podania|do dekoracji|do serwowania|^dodatki$|propozycj""", RegexOption.IGNORE_CASE)
+
     /** Mnożniki całego przepisu, gdy liczba porcji jest nieznana — bez pozornej precyzji. */
     val MULTIPLIERS = listOf(0.5, 1.0, 2.0, 3.0)
 

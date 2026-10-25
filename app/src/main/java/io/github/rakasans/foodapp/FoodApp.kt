@@ -58,6 +58,8 @@ class FoodApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.appScope.launch { container.categories.ensureDefaults() }
+        // zdjęcia po podmianie albo z porzuconych importów — sprzątamy pliki bez przepisu
+        container.appScope.launch { container.photos.cleanup(container.recipes.referencedFiles()) }
         // rolki i linki do stron zapisane bez internetu pobierają się, gdy sieć wróci
         val retry = {
             container.appScope.launch { container.reels.retryWaiting() }

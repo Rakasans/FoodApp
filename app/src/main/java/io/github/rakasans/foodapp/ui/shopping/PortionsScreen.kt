@@ -65,7 +65,18 @@ data class PortionChoice(
     val details: RecipeDetails,
     val targetServings: Int? = details.recipe.servings,
     val multiplier: Double = 1.0,
+    /** Grupy opcjonalne („Do podania”, „Dodatki opcjonalne”) włączone przez użytkownika; domyślnie żadna. */
+    val includedOptional: Set<String> = emptySet(),
 ) {
+    val optionalGroups: List<String>
+        get() = details.ingredients.mapNotNull { it.groupName }.distinct().filter(ShoppingBuilder::isOptionalGroup)
+
+    /** Składniki, które trafią na listę: bez grup opcjonalnych, chyba że je włączono. */
+    val items: List<IngredientForShopping>
+        get() = details.ingredients.sortedBy { it.position }
+            .filter { i -> !ShoppingBuilder.isOptionalGroup(i.groupName) || i.groupName in includedOptional }
+            .map { IngredientForShopping(it.name, it.rawText, it.quantity, it.quantityMax, it.unit, it.noQuantity) }
+
     val scaling: Scaling
         get() {
             val s = details.recipe.servings
@@ -107,7 +118,14 @@ class PortionsViewModel(
         list.map { if (it.details.recipe.id == id) it.copy(multiplier = m) else it }
     }
 
-    suspend fun addAll(): Int = _chosen.value.sumOf { shopping.addRecipe(it.details, it.scaling) }
+    fun toggleOptional(id: String, group: String) = _chosen.update { list ->
+        list.map {
+            if (it.details.recipe.id != id) it
+            else it.copy(includedOptional = if (group in it.includedOptional) it.includedOptional - group else it.includedOptional + group)
+        }
+    }
+
+    suspend fun addAll(): Int = _chosen.value.sumOf { shopping.addItems(it.details.recipe.id, it.details.recipe.name, it.items, it.scaling) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -156,19 +174,24 @@ fun PortionsScreen(viewModel: PortionsViewModel, onDone: (Int) -> Unit) {
                                 }
                             }
                         }
+                        if (c.optionalGroups.isNotEmpty()) {
+                            Text("Dodatki — zaznacz, jeśli też chcesz je kupić:", style = MaterialTheme.typography.bodySmall)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                c.optionalGroups.forEach { g ->
+                                    FilterChip(
+                                        selected = g in c.includedOptional, onClick = { viewModel.toggleOptional(r.id, g) },
+                                        label = { Text(g) },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             if (chosen.isNotEmpty()) {
                 val parts = chosen.flatMap { c ->
-                    ShoppingBuilder.parts(
-                        c.details.recipe.name,
-                        c.details.ingredients.sortedBy { it.position }.map {
-                            IngredientForShopping(it.name, it.rawText, it.quantity, it.quantityMax, it.unit, it.noQuantity)
-                        },
-                        c.scaling,
-                    )
+                    ShoppingBuilder.parts(c.details.recipe.name, c.items, c.scaling)
                 }
                 val lines = ShoppingMerge.merge(parts)
                 SectionLabel("Podgląd (${lines.size} pozycji)")

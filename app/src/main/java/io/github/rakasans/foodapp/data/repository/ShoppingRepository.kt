@@ -38,13 +38,20 @@ class ShoppingRepository(
         auth.currentUser.flatMapLatest { u -> db.shoppingDao().observeStates(u.id).map { l -> l.associateBy { it.normalizedName } } }
 
     /** Dodaje składniki przepisu po przeliczeniu. Przepis się nie zmienia. */
-    suspend fun addRecipe(details: RecipeDetails, scaling: Scaling): Int {
-        val items = details.ingredients.sortedBy { it.position }.map {
-            IngredientForShopping(it.name, it.rawText, it.quantity, it.quantityMax, it.unit, it.noQuantity)
-        }
-        val parts = ShoppingBuilder.parts(details.recipe.name, items, scaling)
+    suspend fun addRecipe(details: RecipeDetails, scaling: Scaling): Int =
+        addItems(
+            details.recipe.id, details.recipe.name,
+            details.ingredients.sortedBy { it.position }.map {
+                IngredientForShopping(it.name, it.rawText, it.quantity, it.quantityMax, it.unit, it.noQuantity)
+            },
+            scaling,
+        )
+
+    /** Dodaje wybrane składniki przepisu po przeliczeniu (np. bez dodatków do podania). */
+    suspend fun addItems(recipeId: String, recipeName: String, items: List<IngredientForShopping>, scaling: Scaling): Int {
+        val parts = ShoppingBuilder.parts(recipeName, items, scaling)
         val now = clock.now()
-        db.shoppingDao().upsertParts(parts.map { it.toEntity(details.recipe.id, now) })
+        db.shoppingDao().upsertParts(parts.map { it.toEntity(recipeId, now) })
         // pozycja dodana ponownie nie powinna być od razu odhaczona
         db.shoppingDao().deleteStates(owner, parts.map { normalizeName(it.name) }.distinct())
         return parts.size

@@ -163,3 +163,16 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
 - Treść strony (np. Rozkoszny): „4 porcje” to liczba porcji, „2 – 3 porcje” nie jest zgadywane; krótka linia na początku
   akapitu listy składników to grupa („Kopytka”, „Do podania”); koniec przepisu przy „Rady/porady”, „Nie zapomnij…”, „Wasz,”.
 - Testy na wycinkach prawdziwych stron: `app/src/test/resources/web`.
+
+## v0.4 — dyktowanie, duplikaty po adresie, porządki
+
+- **Dyktowanie** (`ui/importing/DictationScreen`, `domain/DictationText`): systemowe rozpoznawanie mowy
+  (`RecognizerIntent`, pl-PL, preferencja offline), fragmenty dopisywane jako nowe linie, „nowa linia” dzieli tekst,
+  liczebnik na początku linii → cyfra. Transkrypcję można poprawić; dalej jak wklejony tekst. Bez uprawnienia RECORD_AUDIO
+  (nagrywa systemowe okno); `<queries>` w manifeście dla Androida 11+.
+- **Duplikaty po adresie** (`DuplicateRules.sourceKey/findSameSource`): klucz bez protokołu, www/m., parametrów śledzących,
+  kotwicy i „/”; Instagram po kodzie rolki. Import linku (także z „Udostępnij”) pyta: „Otwórz istniejący” / „Importuj mimo to”.
+- **Grupy składników w edytorze**: nagłówki grup na liście, pole „Grupa” i szybki wybór istniejących w „Popraw”;
+  nowy składnik dziedziczy grupę poprzedniego.
+- **Sprzątanie zdjęć**: przy starcie usuwane pliki zdjęć bez przepisu (starsze niż doba); zdjęcia usuniętych przepisów zostają.
+- **Lista zakupów**: grupy opcjonalne („Dodatki opcjonalne”, „Do podania”, „Do dekoracji”) domyślnie pominięte, do włączenia na ekranie porcji.

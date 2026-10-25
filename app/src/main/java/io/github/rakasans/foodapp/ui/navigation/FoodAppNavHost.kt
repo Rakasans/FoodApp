@@ -64,10 +64,14 @@ import io.github.rakasans.foodapp.ui.importing.MaterialScreen
 import io.github.rakasans.foodapp.ui.importing.OcrImportScreen
 import io.github.rakasans.foodapp.ui.importing.OcrMode
 import io.github.rakasans.foodapp.ui.importing.TextImportScreen
+import io.github.rakasans.foodapp.ui.importing.DictationImportScreen
 import io.github.rakasans.foodapp.domain.isLinkShare
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import io.github.rakasans.foodapp.data.local.RecipeStatus
+import kotlinx.coroutines.launch
 
 private object Routes {
     const val LIBRARY = "library"
@@ -83,6 +87,7 @@ private object Routes {
     const val IMPORT_OCR = "import/ocr/{mode}?target={target}&share={share}"
     const val MATERIAL = "material/{id}"
     const val PORTIONS = "portions?ids={ids}"
+    const val IMPORT_DICTATION = "import/dictation"
     const val COLLECTION = "collection/{id}"
     fun portions(ids: List<String> = emptyList()) = "portions?ids=${ids.joinToString(",")}"
     fun collection(id: String) = "collection/$id"
@@ -128,6 +133,7 @@ private fun NavHostController.openDetailReplacing(id: String) {
 @Composable
 fun FoodAppNavHost(container: AppContainer) {
     val nav = rememberNavController()
+    val scope = rememberCoroutineScope()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
     val current = topLevel.firstOrNull { it.route == route }
@@ -141,6 +147,7 @@ fun FoodAppNavHost(container: AppContainer) {
         Routes.IMPORT_OCR -> "Rozpoznaj ze zdjęcia"
         Routes.MATERIAL -> "Zapisany materiał"
         Routes.PORTIONS -> "Porcje i lista zakupów"
+        Routes.IMPORT_DICTATION -> "Dyktowanie"
         Routes.COLLECTION -> "Kolekcja"
         else -> "Przepis"
     }
@@ -243,7 +250,11 @@ fun FoodAppNavHost(container: AppContainer) {
                     onScreenshot = { nav.navigate(Routes.importOcr(OcrMode.SCREENSHOT)) },
                     onText = { nav.navigate(Routes.importText()) },
                     onPhoto = { nav.navigate(Routes.importOcr(OcrMode.PHOTO)) },
+                    onDictation = { nav.navigate(Routes.IMPORT_DICTATION) },
                 )
+            }
+            composable(Routes.IMPORT_DICTATION) {
+                DictationImportScreen(container, onOpenEditor = { nav.openEditorReplacing(it) })
             }
             composable(Routes.IMPORT_LINK, arguments = listOf(shareArg)) { entry ->
                 val shareToken = entry.arguments?.getString("share").orEmpty()
@@ -258,6 +269,17 @@ fun FoodAppNavHost(container: AppContainer) {
                         nav.navigate(Routes.importOcr(OcrMode.SCREENSHOT, target = id)) { popUpTo(Routes.LIBRARY) }
                     },
                     onSaved = { nav.navigate(Routes.LIBRARY) { popUpTo(Routes.LIBRARY) { inclusive = true } } },
+                    onOpenExisting = { id ->
+                        scope.launch {
+                            val r = container.recipes.getRecipe(id) ?: return@launch
+                            val target = when (r.status) {
+                                RecipeStatus.MATERIAL -> Routes.material(id)
+                                RecipeStatus.DRAFT -> Routes.editor(id)
+                                RecipeStatus.APPROVED -> Routes.detail(id)
+                            }
+                            nav.navigate(target) { popUpTo(Routes.LIBRARY) }
+                        }
+                    },
                 )
             }
             composable(Routes.IMPORT_TEXT, arguments = listOf(shareArg)) { entry ->

@@ -46,6 +46,7 @@ import io.github.rakasans.foodapp.data.local.RecipeEntity
 import io.github.rakasans.foodapp.data.local.RecipeStatus
 import io.github.rakasans.foodapp.data.local.SourceType
 import io.github.rakasans.foodapp.domain.OcrCorrector
+import io.github.rakasans.foodapp.domain.ExistingRecipe
 import io.github.rakasans.foodapp.domain.RecipeTextParser
 import io.github.rakasans.foodapp.domain.extractUrl
 import io.github.rakasans.foodapp.domain.isInstagramUrl
@@ -74,6 +75,7 @@ fun LinkImportScreen(
     onOpenEditor: (String) -> Unit,
     onOpenOcrForReel: (String) -> Unit,
     onSaved: () -> Unit,
+    onOpenExisting: (String) -> Unit,
 ) {
     var url by rememberSaveable { mutableStateOf(initialText?.let { extractUrl(it) ?: it }.orEmpty()) }
     var note by rememberSaveable { mutableStateOf("") }
@@ -120,8 +122,18 @@ fun LinkImportScreen(
         }
     }
 
-    // Z „Udostępnij”: rolka albo strona importuje się od razu, bez dodatkowych kliknięć.
-    LaunchedEffect(Unit) { if (fromShare && valid) { if (instagram) startReel() else startWeb() } }
+    fun startImport() = if (instagram) startReel() else startWeb()
+
+    /** Ten sam adres już jest w przepisach → pytamy, zamiast tworzyć drugi szkic. */
+    fun checkThenImport() {
+        scope.launch {
+            val same = container.recipes.findBySource(clean)
+            if (same.isEmpty()) startImport() else reel = ReelState.Duplicate(same)
+        }
+    }
+
+    // Z „Udostępnij”: rolka albo strona importuje się od razu, bez dodatkowych kliknięć (chyba że już ją masz).
+    LaunchedEffect(Unit) { if (fromShare && valid) checkThenImport() }
 
     ImportColumn {
         when (val st = reel) {
@@ -137,7 +149,7 @@ fun LinkImportScreen(
                         "Pobierzemy opis i zdjęcie rolki i od razu utworzymy szkic do sprawdzenia.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(onClick = ::startReel, modifier = Modifier.fillMaxWidth()) { Text("Importuj rolkę") }
+                    Button(onClick = ::checkThenImport, modifier = Modifier.fillMaxWidth()) { Text("Importuj rolkę") }
                 } else if (valid) {
                     Text(
                         "Pobierzemy przepis ze strony (składniki, kroki, zdjęcie) i utworzymy szkic do sprawdzenia. " +
@@ -148,11 +160,21 @@ fun LinkImportScreen(
                         value = note, onValueChange = { note = it }, label = { Text("Notatka (opcjonalnie)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
                     )
-                    Button(onClick = ::startWeb, modifier = Modifier.fillMaxWidth()) { Text("Importuj przepis ze strony") }
+                    Button(onClick = ::checkThenImport, modifier = Modifier.fillMaxWidth()) { Text("Importuj przepis ze strony") }
                     OutlinedButton(onClick = {
                         scope.launch { onOpenEditor(container.recipes.createEmptyDraft(SourceType.WEB, clean)) }
                     }, modifier = Modifier.fillMaxWidth()) { Text("Wprowadź przepis ręcznie") }
                 }
+            }
+            is ReelState.Duplicate -> {
+                NoticeCard(BadgeKind.WARN) {
+                    Text(if (instagram) "Ta rolka już jest w Twoich przepisach" else "Ten przepis już jest w Twoich przepisach", fontWeight = FontWeight.Bold)
+                    st.existing.forEach { e ->
+                        Text("• " + e.name.ifBlank { "Bez nazwy" } + if (e.isMaterial) " (zapisany link)" else "")
+                    }
+                }
+                Button(onClick = { onOpenExisting(st.existing.first().id) }, modifier = Modifier.fillMaxWidth()) { Text("Otwórz istniejący") }
+                OutlinedButton(onClick = ::startImport, modifier = Modifier.fillMaxWidth()) { Text("Importuj mimo to") }
             }
             ReelState.Working -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 CircularProgressIndicator()
@@ -192,6 +214,7 @@ private sealed interface ReelState {
     data object Working : ReelState
     data class Waiting(val id: String) : ReelState
     data class Failed(val id: String, val reason: String) : ReelState
+    data class Duplicate(val existing: List<ExistingRecipe>) : ReelState
 }
 
 /** Notatka „od kogo” do zapisanej rolki — ułatwia odnalezienie, zanim powstanie przepis. */
