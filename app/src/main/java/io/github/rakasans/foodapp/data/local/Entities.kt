@@ -1,5 +1,6 @@
 package io.github.rakasans.foodapp.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -44,6 +45,9 @@ data class RecipeEntity(
     val updatedAt: Long,
     val deletedAt: Long? = null,
     val syncState: SyncState = SyncState.LOCAL_ONLY,
+    /** Ulubiony (serduszko). Dodane w wersji bazy 4. */
+    @ColumnInfo(defaultValue = "0")
+    val favorite: Boolean = false,
 )
 
 @Entity(

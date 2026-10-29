@@ -336,7 +336,7 @@ fun OcrImportScreen(
             OcrStep.Pick -> {
                 Text(
                     if (mode == OcrMode.SCREENSHOT)
-                        "Zrób w Instagramie zrzut ekranu z opisem rolki i wybierz go tutaj. Możesz też udostępnić zrzut prosto do FoodApp."
+                        "Zrób w Instagramie zrzut ekranu z opisem rolki i wybierz go tutaj. Możesz też udostępnić zrzut prosto do Przepisarni."
                     else "Zrób zdjęcie strony z przepisem albo wybierz je z galerii.",
                     style = MaterialTheme.typography.bodyMedium,
                 )

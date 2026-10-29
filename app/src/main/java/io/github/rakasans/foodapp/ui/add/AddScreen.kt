@@ -43,7 +43,7 @@ fun AddScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            "Każdy przepis trafia najpierw do szkicu, który przejrzysz przed zatwierdzeniem. W innych aplikacjach możesz też wybrać „Udostępnij → Zapisz w FoodApp”.",
+            "Każdy przepis trafia najpierw do szkicu, który przejrzysz przed zatwierdzeniem. W innych aplikacjach możesz też wybrać „Udostępnij → Zapisz w Przepisarni”.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

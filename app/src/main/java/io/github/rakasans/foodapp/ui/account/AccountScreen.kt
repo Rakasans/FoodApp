@@ -155,7 +155,7 @@ private fun BackupSection(container: AppContainer) {
                     else -> "Przywrócono ${recipesCount(r.added)}."
                 }
             } catch (e: IllegalArgumentException) {
-                e.message ?: "To nie jest kopia FoodApp."
+                e.message ?: "To nie jest kopia Przepisarni."
             } catch (e: Exception) {
                 "Nie udało się przywrócić kopii: ${e.message ?: "nieznany błąd"}"
             }
@@ -169,7 +169,7 @@ private fun BackupSection(container: AppContainer) {
     }
     OutlinedButton(
         enabled = !working,
-        onClick = { exportLauncher.launch("FoodApp-kopia-${java.time.LocalDate.now()}.zip") },
+        onClick = { exportLauncher.launch("Przepisarnia-kopia-${java.time.LocalDate.now()}.zip") },
         modifier = Modifier.fillMaxWidth(),
     ) { Text("Zapisz kopię do pliku") }
     OutlinedButton(

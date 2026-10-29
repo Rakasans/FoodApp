@@ -1,5 +1,9 @@
 package io.github.rakasans.foodapp.ui.detail
 
+import kotlinx.coroutines.launch
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
@@ -56,9 +60,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 
-class DetailViewModel(recipeId: String, repo: RecipeRepository) : ViewModel() {
+class DetailViewModel(private val recipeId: String, private val repo: RecipeRepository) : ViewModel() {
     val details: StateFlow<RecipeDetails?> = repo.observeDetails(recipeId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Serduszko: dodaje do ulubionych albo usuwa — od razu, bez potwierdzenia. */
+    fun toggleFavorite() {
+        val current = details.value?.recipe?.favorite ?: return
+        viewModelScope.launch { repo.setFavorite(recipeId, !current) }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -88,7 +98,16 @@ fun DetailScreen(
         r.photoUri?.let { path ->
             RecipePhoto(path, photos, "Zdjęcie: ${r.name}", Modifier.fillMaxWidth())
         }
-        Text(r.name, style = MaterialTheme.typography.headlineSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(r.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            IconButton(onClick = viewModel::toggleFavorite) {
+                Icon(
+                    if (r.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (r.favorite) "Usuń z ulubionych" else "Dodaj do ulubionych",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             details.categories.forEach { Badge(BadgeUi(it.name, BadgeKind.OK)) }
             details.tags.forEach { Badge(BadgeUi("#${it.name}", BadgeKind.NEUTRAL)) }

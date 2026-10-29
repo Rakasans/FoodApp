@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ShoppingPartEntity::class,
         ShoppingItemStateEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class FoodDatabase : RoomDatabase() {
@@ -47,9 +47,16 @@ abstract class FoodDatabase : RoomDatabase() {
             }
         }
 
+        /** v4: ulubione przepisy. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recipe ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun create(context: Context): FoodDatabase =
             Room.databaseBuilder(context, FoodDatabase::class.java, "foodapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

@@ -1,5 +1,6 @@
 package io.github.rakasans.foodapp.ui.editor
 
+import io.github.rakasans.foodapp.data.local.SourceType
 import io.github.rakasans.foodapp.ui.common.SourceActions
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -128,6 +129,13 @@ fun EditorScreen(
             NoticeCard(BadgeKind.INFO) {
                 Text("Sprawdź szkic", fontWeight = FontWeight.Bold)
                 Text("Przepis rozpoznany automatycznie. Pola, których nie znaleźliśmy, są puste — niczego nie dopisujemy. Oryginał jest na dole formularza.")
+            }
+            // Instagram udostępnia tylko początek długiego opisu — koniec (zwykle ostatnie kroki) trzeba uzupełnić
+            if (d.sourceType == SourceType.INSTAGRAM_REEL && d.materialText?.trimEnd()?.endsWith("…") == true) {
+                NoticeCard(BadgeKind.WARN) {
+                    Text("Opis rolki jest ucięty", fontWeight = FontWeight.Bold)
+                    Text("Instagram udostępnia tylko początek długiego opisu. Sprawdź końcówkę w aplikacji Instagram („Otwórz rolkę” na dole) i dopisz brakujące kroki.")
+                }
             }
         }
 

@@ -91,7 +91,7 @@ class BackupManager(
                 zip.closeEntry()
             }
         }
-        val file = Backup.fromJson(json ?: throw IllegalArgumentException("W pliku nie ma kopii przepisów FoodApp."))
+        val file = Backup.fromJson(json ?: throw IllegalArgumentException("W pliku nie ma kopii przepisów Przepisarni."))
         var added = 0
         var skipped = 0
         val usedPhotos = mutableSetOf<String>()
@@ -141,6 +141,7 @@ class BackupManager(
                     createdAt = (f["createdAt"] as? Double)?.toLong() ?: now,
                     updatedAt = (f["updatedAt"] as? Double)?.toLong() ?: now,
                     syncState = SyncState.LOCAL_ONLY,
+                    favorite = f["favorite"] == true,
                 )
             )
             dao.upsertIngredients(b.ingredients.mapIndexed { i, x ->
@@ -171,6 +172,7 @@ class BackupManager(
                 "nutritionOrigin" to r.nutritionOrigin.name, "nutritionBasis" to r.nutritionBasis,
                 "allergensOrigin" to r.allergensOrigin.name, "allergensText" to r.allergensText,
                 "createdAt" to r.createdAt.toDouble(), "updatedAt" to r.updatedAt.toDouble(),
+                "favorite" to r.favorite,
             ),
             ingredients = ingredients.sortedBy { it.position }.map {
                 BackupIngredient(it.rawText, it.name, it.quantity, it.quantityMax, it.unit, it.noQuantity, it.unitInferred, it.groupName)

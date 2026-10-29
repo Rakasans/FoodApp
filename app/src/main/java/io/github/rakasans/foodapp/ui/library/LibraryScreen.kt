@@ -1,5 +1,8 @@
 package io.github.rakasans.foodapp.ui.library
 
+import io.github.rakasans.foodapp.ui.common.RecipeThumbnail
+import io.github.rakasans.foodapp.data.repository.PhotoStore
+import androidx.compose.material.icons.filled.Favorite
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -61,6 +64,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel,
+    photos: PhotoStore,
     onOpenRecipe: (id: String, target: OpenTarget) -> Unit,
     onAddRecipe: () -> Unit,
 ) {
@@ -106,6 +110,13 @@ fun LibraryScreen(
                                 item {
                                     FilterChip(selected = state.filters.categoryId == null, onClick = { viewModel.onCategory(null) }, label = { Text("Wszystkie") })
                                 }
+                                item {
+                                    FilterChip(
+                                        selected = state.filters.favoritesOnly, onClick = viewModel::onFavoritesOnly,
+                                        label = { Text("Ulubione") },
+                                        leadingIcon = { Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    )
+                                }
                                 items(state.categories, key = { it.id }) { c ->
                                     FilterChip(selected = state.filters.categoryId == c.id, onClick = { viewModel.onCategory(c.id) }, label = { Text(c.name) })
                                 }
@@ -145,6 +156,7 @@ fun LibraryScreen(
                 items(state.items, key = { it.id }) { card ->
                     val isSelected = card.id in state.selected
                     RecipeCard(
+                        photos = photos,
                         card = card,
                         selected = isSelected,
                         onClick = {
@@ -215,7 +227,7 @@ private fun SelectionBar(count: Int, onCancel: () -> Unit, onSelectAll: () -> Un
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
-private fun RecipeCard(card: RecipeCardUi, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun RecipeCard(photos: PhotoStore, card: RecipeCardUi, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -226,24 +238,26 @@ private fun RecipeCard(card: RecipeCardUi, selected: Boolean, onClick: () -> Uni
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = "Zaznacz"),
     ) {
         Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
+            // Miniatura: zdjęcie przepisu; bez zdjęcia — stonowane pole z pierwszą literą
+            Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
+                RecipeThumbnail(card.photoUri, photos, card.name, Modifier.size(72.dp))
                 if (selected) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                } else {
-                    Text(
-                        card.name.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    Box(
+                        Modifier.size(72.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
-                Text(card.name, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(card.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    if (card.favorite) {
+                        Icon(
+                            Icons.Default.Favorite, contentDescription = "Ulubiony",
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                        )
+                    }
+                }
                 Text(card.meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(card.updatedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (card.tags.isNotEmpty()) {

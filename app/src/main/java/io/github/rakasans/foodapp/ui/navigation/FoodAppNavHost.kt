@@ -213,6 +213,7 @@ fun FoodAppNavHost(container: AppContainer) {
                 })
                 LibraryScreen(
                     viewModel = vm,
+                    photos = container.photos,
                     onOpenRecipe = { id, target ->
                         nav.navigate(
                             when (target) {

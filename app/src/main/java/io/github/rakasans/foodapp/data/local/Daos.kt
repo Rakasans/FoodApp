@@ -84,6 +84,10 @@ interface RecipeDao {
     @Query("SELECT id, name, sourceUrl, status FROM recipe WHERE deletedAt IS NULL")
     suspend fun activeNames(): List<RecipeNameRow>
 
+    /** Serduszko nie zmienia daty aktualizacji — lista „Moje przepisy” nie przeskakuje po kliknięciu. */
+    @Query("UPDATE recipe SET favorite = :favorite WHERE id = :id")
+    suspend fun setFavorite(id: String, favorite: Boolean)
+
     @Query("UPDATE recipe SET deletedAt = :now, updatedAt = :now WHERE id IN (:ids)")
     suspend fun softDelete(ids: List<String>, now: Long)
 

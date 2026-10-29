@@ -5,6 +5,8 @@ data class InstagramPost(
     val caption: String?,
     val imageUrl: String?,
     val author: String?,
+    /** Instagram uciął opis w danych strony (koniec w pół znaku) — reszta jest tylko w aplikacji Instagram. */
+    val truncated: Boolean = false,
 )
 
 /**
@@ -46,8 +48,12 @@ object InstagramPage {
         val author = (if (metaMatches) authorFromMetaDescription(html) ?: authorFromMeta(html) else null)
             ?: authorFromEmbed(html)
             ?: (if (shortcode == null) jsonString(html, "username") else null)
+        // Instagram ucina długie opisy w pół znaku (\uFFFD na końcu) — oznaczamy to zamiast udawać pełny tekst
+        val cut = caption?.trim()?.endsWith('\uFFFD') == true
+        val text = if (cut) caption!!.trim().trimEnd('\uFFFD').trimEnd() + "…" else caption
         return InstagramPost(
-            caption = caption?.trim()?.takeIf { it.isNotEmpty() },
+            truncated = cut,
+            caption = text?.trim()?.takeIf { it.isNotEmpty() },
             imageUrl = image?.takeIf { it.startsWith("http") },
             author = author?.trim()?.removePrefix("@")?.takeIf { it.isNotEmpty() },
         )

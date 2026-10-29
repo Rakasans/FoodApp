@@ -32,6 +32,8 @@ data class RecipeCardUi(
     val badges: List<BadgeUi>,
     val target: OpenTarget = OpenTarget.DETAIL,
     val updatedText: String = "",
+    val photoUri: String? = null,
+    val favorite: Boolean = false,
 )
 
 /** Dokąd prowadzi stuknięcie karty. */
@@ -41,6 +43,7 @@ data class LibraryFilters(
     val query: String = "",
     val categoryId: String? = null,
     val tagId: String? = null,
+    val favoritesOnly: Boolean = false,
 )
 
 data class LibraryUiState(
@@ -85,6 +88,7 @@ class LibraryViewModel(
     fun onQuery(q: String) = filters.update { it.copy(query = q) }
     fun onCategory(id: String?) = filters.update { it.copy(categoryId = if (it.categoryId == id) null else id) }
     fun onTag(id: String?) = filters.update { it.copy(tagId = if (it.tagId == id) null else id) }
+    fun onFavoritesOnly() = filters.update { it.copy(favoritesOnly = !it.favoritesOnly) }
 
     fun toggleSelection(id: String) = selected.update { if (id in it) it - id else it + id }
     fun selectAllVisible() = selected.update { state.value.items.map { it.id }.toSet() }
@@ -119,6 +123,7 @@ class LibraryViewModel(
         }
         if (f.categoryId != null && s.categories.none { it.id == f.categoryId }) return false
         if (f.tagId != null && s.tags.none { it.id == f.tagId }) return false
+        if (f.favoritesOnly && !s.recipe.favorite) return false
         return true
     }
 
@@ -157,6 +162,8 @@ class LibraryViewModel(
                 RecipeStatus.APPROVED -> OpenTarget.DETAIL
             },
             updatedText = "Zaktualizowano: " + formatUpdated(r.updatedAt, System.currentTimeMillis()),
+            photoUri = r.photoUri,
+            favorite = r.favorite,
         )
     }
 }

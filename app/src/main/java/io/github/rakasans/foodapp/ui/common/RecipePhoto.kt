@@ -45,3 +45,30 @@ fun RecipePhoto(path: String, photos: PhotoStore, contentDescription: String, mo
         }
     }
 }
+
+/**
+ * Kwadratowa miniatura na liście przepisów: zdjęcie przycięte do kwadratu (mały podgląd, szybkie ładowanie).
+ * Bez zdjęcia — spokojne pole z pierwszą literą nazwy.
+ */
+@Composable
+fun RecipeThumbnail(path: String?, photos: PhotoStore, name: String, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(12.dp)
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+        value = path?.let { photos.loadPreview(it, maxSizePx = 256)?.asImageBitmap() }
+    }
+    val current = bitmap
+    if (current != null) {
+        Image(
+            bitmap = current, contentDescription = null, contentScale = ContentScale.Crop,
+            modifier = modifier.clip(shape),
+        )
+    } else {
+        Box(modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            Text(
+                name.trim().take(1).uppercase().ifEmpty { "?" },
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}

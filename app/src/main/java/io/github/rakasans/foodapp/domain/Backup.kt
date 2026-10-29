@@ -65,10 +65,10 @@ object Backup {
 
     /** Odczyt kopii. Rzuca IllegalArgumentException, gdy plik nie jest kopią FoodApp. */
     fun fromJson(text: String): BackupFile {
-        val root = MiniJson.parse(text) as? Map<*, *> ?: throw IllegalArgumentException("To nie jest kopia FoodApp.")
-        require(root["app"] == "FoodApp") { "To nie jest kopia FoodApp." }
+        val root = MiniJson.parse(text) as? Map<*, *> ?: throw IllegalArgumentException("To nie jest kopia Przepisarni.")
+        require(root["app"] == "FoodApp") { "To nie jest kopia Przepisarni." }
         val version = (root["version"] as? Double)?.toInt() ?: 0
-        require(version in 1..VERSION) { "Kopia pochodzi z nowszej wersji aplikacji — zaktualizuj FoodApp." }
+        require(version in 1..VERSION) { "Kopia pochodzi z nowszej wersji aplikacji — zaktualizuj Przepisarnię." }
         val recipes = (root["recipes"] as? List<*>).orEmpty().mapNotNull { it as? Map<*, *> }.map { r ->
             BackupRecipe(
                 id = r["id"] as String,

@@ -103,6 +103,8 @@ class RecipeRepository(
 
     suspend fun referencedFiles(): Set<String> = db.recipeDao().referencedFiles().toSet()
 
+    suspend fun setFavorite(id: String, favorite: Boolean) = db.recipeDao().setFavorite(id, favorite)
+
     // ---------- Materiały (v0.2) ----------
 
     /**

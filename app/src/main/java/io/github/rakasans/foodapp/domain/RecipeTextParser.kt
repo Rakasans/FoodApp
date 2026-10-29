@@ -45,6 +45,8 @@ object RecipeTextParser {
     )
     private val SIGN_OFF = Regex("""\s*\b(smacznego|enjoy|bon app[ée]tit)\b[!.\s]*$""", RegexOption.IGNORE_CASE)
 
+    private val KEYCAP = Regex("""(\d)\uFE0F?\u20E3""")
+
     /** Długość, powyżej której linia bez ilości to już opis przygotowania, a nie składnik. */
     private const val PROSE_LENGTH = 70
 
@@ -65,6 +67,16 @@ object RecipeTextParser {
         var group: String? = null
 
         var lastWasIngredient = false
+        // nazwa części przepisu przed krokami („Baza:”, „Tofu:”) — dopisywana do pierwszego kroku tej części
+        var section: String? = null
+        fun addStep(text: String, numbered: Boolean) {
+            val s = section
+            if (s != null && numbered) { steps.add("$s: $text", numbered = true); section = null }
+            else steps.add(text, numbered)
+        }
+        fun nextIsNumberedStep(i: Int): Boolean =
+            lines.getOrNull(i + 1)?.let { STEP_NUMBER.matchEntire(it) }?.let { it.groupValues[2].length > 40 } == true
+
         lines.forEachIndexed { index, line ->
             if (index == nameIndex && name.isNotEmpty()) return@forEachIndexed
             val countBefore = ingredients.size
@@ -78,12 +90,15 @@ object RecipeTextParser {
                 Mode.INGREDIENTS -> {
                     val stepMatch = STEP_NUMBER.matchEntire(line)
                     when {
+                        // „Baza:” tuż przed numerowanymi krokami — to część przygotowania, nie grupa składników
+                        isSectionHeader(line) && nextIsNumberedStep(index) -> {
+                            mode = Mode.STEPS; section = line.removeSuffix(":").trim()
+                        }
                         // „Sos:” — nagłówek grupy składników
-                        line.endsWith(":") && line.length <= 40 && IngredientParser.parse(line).quantity == null ->
-                            group = line.removeSuffix(":").trim()
+                        isSectionHeader(line) -> group = line.removeSuffix(":").trim()
                         // numerowane długie zdanie = kroki bez nagłówka
                         stepMatch != null && stepMatch.groupValues[2].length > 40 -> {
-                            mode = Mode.STEPS; steps.add(stepMatch.groupValues[2], numbered = true)
+                            mode = Mode.STEPS; addStep(stepMatch.groupValues[2], numbered = true)
                         }
                         // długi akapit bez ilości po liście składników = opis przygotowania
                         isProse(line) -> { mode = Mode.STEPS; steps.add(line, numbered = false) }
@@ -92,7 +107,11 @@ object RecipeTextParser {
                 }
                 Mode.STEPS -> {
                     val m = STEP_NUMBER.matchEntire(line)
-                    if (m != null) steps.add(m.groupValues[2], numbered = true) else steps.add(line, numbered = false)
+                    when {
+                        m != null -> addStep(m.groupValues[2], numbered = true)
+                        isSectionHeader(line) && nextIsNumberedStep(index) -> section = line.removeSuffix(":").trim()
+                        else -> steps.add(line, numbered = false)
+                    }
                 }
                 Mode.NONE -> if (!hasHeaders) {
                     // Bez nagłówków: numerowane linie to kroki, linie z ilością albo punktorem to składniki.
@@ -139,6 +158,10 @@ object RecipeTextParser {
 
     private enum class Mode { NONE, INGREDIENTS, STEPS }
 
+    /** „Sos:”, „Baza:” — krótka linia z dwukropkiem, bez ilości. */
+    private fun isSectionHeader(line: String) =
+        line.endsWith(":") && line.length <= 40 && IngredientParser.parse(line).quantity == null
+
     private fun isHeader(line: String) = INGREDIENT_HEADERS.matches(line) || STEP_HEADERS.matches(line)
 
     private fun isProse(line: String): Boolean {
@@ -184,7 +207,8 @@ object RecipeTextParser {
 
     /** Usuwa emoji i ozdobniki z początku i końca linii (opisy z Instagrama). */
     private fun cleanLine(line: String): String {
-        var s = line.trim()
+        // emoji-cyfry („1️⃣”, „🔟”) to numeracja kroków — zamieniamy na „1.”, zanim usuniemy ozdobniki
+        var s = line.trim().replace(KEYCAP, "$1.").replace("\uD83D\uDD1F", "10.")
         while (s.isNotEmpty() && isDecoration(s.codePointAt(0))) s = s.substring(Character.charCount(s.codePointAt(0))).trim()
         while (s.isNotEmpty() && isDecoration(s.codePointBefore(s.length))) {
             s = s.substring(0, s.length - Character.charCount(s.codePointBefore(s.length))).trim()
