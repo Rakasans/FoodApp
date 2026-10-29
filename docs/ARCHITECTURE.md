@@ -176,3 +176,14 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
   nowy składnik dziedziczy grupę poprzedniego.
 - **Sprzątanie zdjęć**: przy starcie usuwane pliki zdjęć bez przepisu (starsze niż doba); zdjęcia usuniętych przepisów zostają.
 - **Lista zakupów**: grupy opcjonalne („Dodatki opcjonalne”, „Do podania”, „Do dekoracji”) domyślnie pominięte, do włączenia na ekranie porcji.
+
+## v0.5 — ulubione, miniatury, Przepisarnia, strona WWW
+
+- **Ulubione**: `recipe.favorite` (baza v4, migracja 3→4 z `DEFAULT 0`), serduszko w szczegółach (bez zmiany `updatedAt`,
+  żeby lista nie przeskakiwała), filtr „Ulubione” w „Moich przepisach”, pole w kopii zapasowej.
+- **Lista przepisów**: kwadratowa miniatura zdjęcia przepisu (podgląd 256 px), bez zdjęcia — pierwsza litera nazwy.
+- **Rolki**: emoji-cyfry (1️⃣) to numeracja kroków; nagłówek „Baza:”/„Tofu:” przed numerowanymi krokami to część
+  przygotowania (dopisywana do pierwszego kroku), nie grupa składników. Opis ucięty przez Instagram (koniec w pół znaku)
+  kończy się „…”, a edytor pokazuje ostrzeżenie.
+- **Nazwa widoczna**: Przepisarnia (identyfikator pakietu bez zmian).
+- **Strona** `site/` → GitHub Pages (`.github/workflows/pages.yml`), domena przepisarnia.pl; konfiguracja w `site/README.md`.
