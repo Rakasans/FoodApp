@@ -1,0 +1,9 @@
+# Konfiguracja Supabase CLI dla projektu Przepisarnia (FoodApp).
+# Migracje z supabase/migrations wdraża integracja Supabase ↔ GitHub przy zmianach na gałęzi main.
+project_id = "przepisarnia"
+
+[api]
+schemas = ["public"]
+
+[auth]
+site_url = "https://przepisarnia.pl"

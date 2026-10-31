@@ -196,3 +196,14 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
 - Tryb gotowania (`ui/detail/CookingScreen`): przycisk „Gotuj” w przepisie; duży tekst, ekran nie gaśnie (`keepScreenOn`),
   odhaczanie składników i kroków, bieżący krok wyróżniony i przewijany do widoku, „Zrobione — dalej” / „Cofnij”.
   Odhaczenia nie zmieniają przepisu.
+
+## Supabase — schemat synchronizacji (31.10)
+
+- `supabase/migrations/20261031190000_init_sync_schema.sql`: lustro tabel Room (snake_case), id = UUID z telefonu,
+  czasy z telefonu w ms, `deleted_at` (miękkie usuwanie), `server_updated_at` (ustawiany przez bazę — pobieranie zmian
+  „od ostatniej synchronizacji” niezależnie od zegara telefonu).
+- RLS na każdej tabeli: tylko `owner_id = auth.uid()`; wiersze podrzędne nie mogą wskazywać cudzego przepisu (trigger).
+- Storage: prywatny bucket `photos`, ścieżka `<user_id>/<plik>`.
+- Wdrażanie: integracja Supabase ↔ GitHub (migracje z `supabase/migrations` na gałęzi `main`).
+- Migracja przetestowana lokalnie na PostgreSQL 16 z atrapami schematów `auth`/`storage` (RLS: użytkownik B nie widzi
+  i nie zmienia danych A).
