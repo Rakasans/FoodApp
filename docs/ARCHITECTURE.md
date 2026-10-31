@@ -207,3 +207,17 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
 - Wdrażanie: integracja Supabase ↔ GitHub (migracje z `supabase/migrations` na gałęzi `main`).
 - Migracja przetestowana lokalnie na PostgreSQL 16 z atrapami schematów `auth`/`storage` (RLS: użytkownik B nie widzi
   i nie zmienia danych A).
+
+## v0.7 — synchronizacja z chmurą (Supabase)
+
+- `data/sync/SupabaseClient`: Auth (anonimowe konto, odświeżanie tokenu), PostgREST, Storage — na HttpURLConnection,
+  bez dodatkowych bibliotek. Klucz publishable w `BuildConfig` (dane chronią reguły RLS).
+- `data/sync/SyncEngine`: najpierw pobieranie (wiersze z `server_updated_at` > znacznik), potem wysyłanie (rekordy,
+  których skrót treści różni się od bazy z `sync_meta`). Konflikty: `domain/SyncRules` (porównanie trójstronne,
+  nowsza zmiana wygrywa, remis → chmura). Dzieci przepisu (składniki, kroki, wartości, powiązania) — zastępowane
+  w całości. Zdjęcia: `photos/<user_id>/<recipe_id>-<los>.jpg`, wysyłane tylko po zmianie.
+- Baza Room v5: `sync_meta(kind, id, baseHash, baseServerAt)`.
+- Wyzwalacze: start aplikacji, powrót internetu, 4 s po zmianie przepisów/kolekcji, przycisk w „Koncie”.
+  W „Koncie” można synchronizację wyłączyć.
+- Jeszcze nie: lista zakupów, logowanie Google (podpięcie do konta anonimowego), scalanie domyślnych kategorii
+  między urządzeniami (każda instalacja tworzy własne „Obiad”, „Deser”… — przy drugim telefonie będą podwójne).

@@ -15,6 +15,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        // Supabase: adres projektu i klucz publiczny (publishable) — bezpieczne w aplikacji, dane chronią reguły RLS.
+        buildConfigField("String", "SUPABASE_URL", "\"https://tawrhsnhfgzofvuljwnh.supabase.co\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_L6nF4PknhOkb7JXIcxhWdA_w2_mJS1a\"")
     }
 
     buildTypes {

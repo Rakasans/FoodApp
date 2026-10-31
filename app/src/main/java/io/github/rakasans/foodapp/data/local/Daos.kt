@@ -39,6 +39,34 @@ interface RecipeDao {
     @Upsert
     suspend fun upsertRecipe(recipe: RecipeEntity)
 
+    // --- synchronizacja (także rekordy usunięte miękko)
+    @Query("SELECT * FROM recipe")
+    suspend fun allRecipes(): List<RecipeEntity>
+
+    @Query("SELECT * FROM ingredient WHERE recipeId = :recipeId ORDER BY position")
+    suspend fun ingredientsFor(recipeId: String): List<IngredientEntity>
+
+    @Query("SELECT * FROM step WHERE recipeId = :recipeId ORDER BY position")
+    suspend fun stepsFor(recipeId: String): List<StepEntity>
+
+    @Query("SELECT * FROM nutrition_value WHERE recipeId = :recipeId ORDER BY position")
+    suspend fun nutritionFor(recipeId: String): List<NutritionValueEntity>
+
+    @Query("SELECT categoryId FROM recipe_category WHERE recipeId = :recipeId ORDER BY categoryId")
+    suspend fun categoryIdsFor(recipeId: String): List<String>
+
+    @Query("SELECT tagId FROM recipe_tag WHERE recipeId = :recipeId ORDER BY tagId")
+    suspend fun tagIdsFor(recipeId: String): List<String>
+
+    @Query("SELECT collectionId FROM recipe_collection WHERE recipeId = :recipeId ORDER BY collectionId")
+    suspend fun collectionIdsFor(recipeId: String): List<String>
+
+    @Query("DELETE FROM recipe_collection WHERE recipeId = :recipeId")
+    suspend fun clearCollections(recipeId: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addCollections(refs: List<RecipeCollectionCrossRef>)
+
     @Upsert
     suspend fun upsertIngredients(items: List<IngredientEntity>)
 
@@ -110,6 +138,12 @@ interface CategoryDao {
 
     @Upsert
     suspend fun upsert(items: List<CategoryEntity>)
+
+    @Query("SELECT * FROM category")
+    suspend fun all(): List<CategoryEntity>
+
+    @Query("SELECT * FROM category WHERE id = :id")
+    suspend fun get(id: String): CategoryEntity?
 }
 
 @Dao
@@ -122,6 +156,12 @@ interface TagDao {
 
     @Upsert
     suspend fun upsert(items: List<TagEntity>)
+
+    @Query("SELECT * FROM tag")
+    suspend fun all(): List<TagEntity>
+
+    @Query("SELECT * FROM tag WHERE id = :id")
+    suspend fun get(id: String): TagEntity?
 }
 
 @Dao
@@ -170,6 +210,9 @@ interface CollectionDao {
     @Query("SELECT * FROM collection WHERE id = :id")
     suspend fun get(id: String): CollectionEntity?
 
+    @Query("SELECT * FROM collection")
+    suspend fun all(): List<CollectionEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addRecipe(ref: RecipeCollectionCrossRef)
 
@@ -178,4 +221,19 @@ interface CollectionDao {
 
     @Query("SELECT collectionId FROM recipe_collection WHERE recipeId = :recipeId")
     suspend fun collectionIdsFor(recipeId: String): List<String>
+}
+
+@Dao
+interface SyncDao {
+    @Query("SELECT * FROM sync_meta WHERE kind = :kind AND id = :id")
+    suspend fun get(kind: String, id: String): SyncMetaEntity?
+
+    @Query("SELECT * FROM sync_meta WHERE kind = :kind")
+    suspend fun all(kind: String): List<SyncMetaEntity>
+
+    @Upsert
+    suspend fun upsert(meta: SyncMetaEntity)
+
+    @Query("DELETE FROM sync_meta")
+    suspend fun clear()
 }

@@ -208,3 +208,17 @@ data class ShoppingItemStateEntity(
     val quantityOverride: String? = null,
     val updatedAt: Long,
 )
+
+/**
+ * Stan synchronizacji rekordu: skrót treści i czas zapisu w chmurze z ostatniej udanej synchronizacji
+ * (porównanie trójstronne — domain/SyncRules). Dodane w wersji bazy 5.
+ * kind: recipe | category | tag | collection | photo (dla zdjęć: baseHash = ścieżka pliku na telefonie,
+ * baseServerAt = ścieżka w chmurze).
+ */
+@Entity(tableName = "sync_meta", primaryKeys = ["kind", "id"])
+data class SyncMetaEntity(
+    val kind: String,
+    val id: String,
+    val baseHash: String,
+    val baseServerAt: String?,
+)

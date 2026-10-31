@@ -23,6 +23,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import io.github.rakasans.foodapp.data.sync.SupabaseClient
+import io.github.rakasans.foodapp.data.sync.SyncEngine
 
 /** Ręczne DI — prostsze niż Hilt przy obecnej skali (patrz docs/ARCHITECTURE.md). */
 class AppContainer(context: Context) {
@@ -49,8 +55,11 @@ class AppContainer(context: Context) {
         recipes, photos, connectivity,
         debugDir = if (BuildConfig.DEBUG) context.getExternalFilesDir("debug") else null,
     )
+    val supabase = SupabaseClient(context, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_KEY)
+    val sync = SyncEngine(context, db, supabase, photos, auth, connectivity)
 }
 
+@OptIn(FlowPreview::class)
 class FoodApp : Application() {
     lateinit var container: AppContainer
         private set
@@ -67,6 +76,17 @@ class FoodApp : Application() {
             container.appScope.launch { container.web.retryWaiting() }
         }
         retry()
-        container.connectivity.onAvailable { retry() }
+        container.connectivity.onAvailable {
+            retry()
+            container.appScope.launch { container.sync.sync() }
+        }
+        // synchronizacja z chmurą: przy starcie i kilka sekund po każdej zmianie przepisów lub kolekcji
+        container.appScope.launch { container.sync.sync() }
+        container.appScope.launch {
+            combine(container.recipes.observeSummaries(), container.collections.observeAll()) { _, _ -> Unit }
+                .drop(1)
+                .debounce(4_000)
+                .collect { container.sync.sync() }
+        }
     }
 }

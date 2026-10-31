@@ -1,5 +1,9 @@
 package io.github.rakasans.foodapp.ui.account
 
+import io.github.rakasans.foodapp.domain.formatUpdated
+import io.github.rakasans.foodapp.data.sync.SyncStatus
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Switch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,6 +68,7 @@ fun AccountScreen(container: AppContainer, onAbout: () -> Unit) {
             Text("Logowanie jest atrapą.", fontWeight = FontWeight.Bold)
             Text("Wszystkie dane zapisują się tylko na tym urządzeniu. Prawdziwe logowanie i synchronizacja — późniejszy etap.")
         }
+        CloudSection(container)
         BackupSection(container)
         OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) { Text("O aplikacji Przepisarnia") }
         Text("Język aplikacji: polski", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -180,4 +185,55 @@ private fun BackupSection(container: AppContainer) {
     ) { Text("Przywróć z kopii") }
     if (working) Text("Pracuję…", color = MaterialTheme.colorScheme.onSurfaceVariant)
     status?.let { Text(it) }
+}
+
+/** Chmura (Supabase): stan synchronizacji, ręczne uruchomienie, wyłączenie. */
+@Composable
+private fun CloudSection(container: AppContainer) {
+    val status by container.sync.status.collectAsState()
+    val scope = rememberCoroutineScope()
+    var enabled by remember { mutableStateOf(container.sync.enabled) }
+    val anonymous = container.supabase.userId != null && container.supabase.isAnonymous
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Kopia w chmurze", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Switch(checked = enabled, onCheckedChange = {
+                    enabled = it
+                    container.sync.enabled = it
+                    if (it) scope.launch { container.sync.sync() }
+                })
+            }
+            Text(
+                when (val s = status) {
+                    SyncStatus.Disabled -> "Wyłączona — przepisy są tylko na tym telefonie."
+                    SyncStatus.Never -> "Jeszcze nie synchronizowano."
+                    SyncStatus.Running -> "Synchronizuję…"
+                    SyncStatus.WaitingForNetwork -> "Czeka na internet."
+                    is SyncStatus.Done -> "Zsynchronizowano: " + formatUpdated(s.at, System.currentTimeMillis()) +
+                        if (s.pushed + s.pulled > 0) " (wysłano ${s.pushed}, pobrano ${s.pulled})" else ""
+                    is SyncStatus.Failed -> "Nie udało się: ${s.message}"
+                },
+                color = if (status is SyncStatus.Failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (enabled && anonymous) {
+                Text(
+                    "Konto w chmurze jest na razie anonimowe — działa tylko na tym telefonie. Po podpięciu logowania Google przepisy zostaną na Twoim koncie.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (enabled) {
+                OutlinedButton(
+                    enabled = status !is SyncStatus.Running,
+                    onClick = { scope.launch { container.sync.sync() } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Synchronizuj teraz") }
+            }
+        }
+    }
 }
