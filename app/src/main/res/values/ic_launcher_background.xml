@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tło ikony: zieleń marki (jak akcent jasnego motywu). -->
+    <color name="ic_launcher_background">#2F6B4F</color>
+</resources>
