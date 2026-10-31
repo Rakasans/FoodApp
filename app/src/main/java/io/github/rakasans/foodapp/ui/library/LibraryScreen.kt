@@ -1,5 +1,7 @@
 package io.github.rakasans.foodapp.ui.library
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.FavoriteBorder
 import io.github.rakasans.foodapp.ui.common.RecipeThumbnail
 import io.github.rakasans.foodapp.data.repository.PhotoStore
 import androidx.compose.material.icons.filled.Favorite
@@ -157,6 +159,8 @@ fun LibraryScreen(
                     val isSelected = card.id in state.selected
                     RecipeCard(
                         photos = photos,
+                        selectionMode = state.selectionMode,
+                        onFavorite = { viewModel.toggleFavorite(card) },
                         card = card,
                         selected = isSelected,
                         onClick = {
@@ -227,7 +231,15 @@ private fun SelectionBar(count: Int, onCancel: () -> Unit, onSelectAll: () -> Un
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
-private fun RecipeCard(photos: PhotoStore, card: RecipeCardUi, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun RecipeCard(
+    photos: PhotoStore,
+    card: RecipeCardUi,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onFavorite: () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -251,11 +263,15 @@ private fun RecipeCard(photos: PhotoStore, card: RecipeCardUi, selected: Boolean
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Top) {
                     Text(card.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    if (card.favorite) {
-                        Icon(
-                            Icons.Default.Favorite, contentDescription = "Ulubiony",
-                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 6.dp).size(18.dp),
-                        )
+                    // Serduszko: puste → kliknięcie dodaje do ulubionych, wypełnione → usuwa (zapisalnych materiałów nie dotyczy)
+                    if (card.target != OpenTarget.MATERIAL && !selectionMode) {
+                        IconButton(onClick = onFavorite, modifier = Modifier.size(40.dp).offset(x = 8.dp, y = (-8).dp)) {
+                            Icon(
+                                if (card.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (card.favorite) "Usuń z ulubionych: ${card.name}" else "Dodaj do ulubionych: ${card.name}",
+                                tint = if (card.favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
                 Text(card.meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

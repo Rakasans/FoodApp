@@ -187,3 +187,12 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
   kończy się „…”, a edytor pokazuje ostrzeżenie.
 - **Nazwa widoczna**: Przepisarnia (identyfikator pakietu bez zmian).
 - **Strona** `site/` → GitHub Pages (`.github/workflows/pages.yml`), domena przepisarnia.pl; konfiguracja w `site/README.md`.
+
+## v0.6 — serduszko na liście, ekran powitalny, tryb gotowania
+
+- Karta przepisu na liście: serduszko (puste/wypełnione) dodaje i usuwa z ulubionych jednym kliknięciem.
+- Ekran powitalny (`ui/welcome`) z treścią landingu przepisarnia.pl: przy pierwszym uruchomieniu i w „Konto → O aplikacji”.
+  Docelowo miejsce na logowanie.
+- Tryb gotowania (`ui/detail/CookingScreen`): przycisk „Gotuj” w przepisie; duży tekst, ekran nie gaśnie (`keepScreenOn`),
+  odhaczanie składników i kroków, bieżący krok wyróżniony i przewijany do widoku, „Zrobione — dalej” / „Cofnij”.
+  Odhaczenia nie zmieniają przepisu.

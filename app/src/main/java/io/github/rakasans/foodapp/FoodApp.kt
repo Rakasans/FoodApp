@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val clock: Clock = SystemClock
+    val prefs = io.github.rakasans.foodapp.core.AppPrefs(context)
     val auth: AuthProvider = DummyAuthProvider(context)
     val db: FoodDatabase = FoodDatabase.create(context)
     val categories = CategoryRepository(db, auth, clock)

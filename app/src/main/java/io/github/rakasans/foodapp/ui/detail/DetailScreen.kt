@@ -1,5 +1,7 @@
 package io.github.rakasans.foodapp.ui.detail
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Button
 import kotlinx.coroutines.launch
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -79,6 +81,7 @@ fun DetailScreen(
     onEdit: () -> Unit,
     onAddToShopping: () -> Unit,
     onCollections: () -> Unit,
+    onCook: () -> Unit,
 ) {
     val d by viewModel.details.collectAsStateWithLifecycle()
     val details = d ?: return
@@ -112,6 +115,11 @@ fun DetailScreen(
             details.categories.forEach { Badge(BadgeUi(it.name, BadgeKind.OK)) }
             details.tags.forEach { Badge(BadgeUi("#${it.name}", BadgeKind.NEUTRAL)) }
             details.collections.filter { it.deletedAt == null }.forEach { Badge(BadgeUi("Kolekcja: ${it.name}", BadgeKind.INFO)) }
+        }
+        if (details.steps.any { it.text.isNotBlank() } || details.ingredients.isNotEmpty()) {
+            Button(onClick = onCook, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                Text("Gotuj — tryb gotowania", style = MaterialTheme.typography.titleMedium)
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (details.ingredients.isNotEmpty()) {

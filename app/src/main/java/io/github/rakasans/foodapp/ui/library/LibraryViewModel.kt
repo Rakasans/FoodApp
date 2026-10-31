@@ -90,6 +90,11 @@ class LibraryViewModel(
     fun onTag(id: String?) = filters.update { it.copy(tagId = if (it.tagId == id) null else id) }
     fun onFavoritesOnly() = filters.update { it.copy(favoritesOnly = !it.favoritesOnly) }
 
+    /** Serduszko na karcie: od razu dodaje do ulubionych albo usuwa. */
+    fun toggleFavorite(card: RecipeCardUi) {
+        viewModelScope.launch { recipes.setFavorite(card.id, !card.favorite) }
+    }
+
     fun toggleSelection(id: String) = selected.update { if (id in it) it - id else it + id }
     fun selectAllVisible() = selected.update { state.value.items.map { it.id }.toSet() }
     fun clearSelection() = selected.update { emptySet() }

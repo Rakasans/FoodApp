@@ -37,7 +37,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun AccountScreen(container: AppContainer) {
+fun AccountScreen(container: AppContainer, onAbout: () -> Unit) {
     val user by container.auth.currentUser.collectAsState()
     val scope = rememberCoroutineScope()
     var duplicates by remember { mutableStateOf<List<String>?>(null) }
@@ -65,6 +65,7 @@ fun AccountScreen(container: AppContainer) {
             Text("Wszystkie dane zapisują się tylko na tym urządzeniu. Prawdziwe logowanie i synchronizacja — późniejszy etap.")
         }
         BackupSection(container)
+        OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) { Text("O aplikacji Przepisarnia") }
         Text("Język aplikacji: polski", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         if (BuildConfig.DEBUG) {

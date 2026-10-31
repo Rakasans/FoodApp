@@ -65,6 +65,8 @@ import io.github.rakasans.foodapp.ui.importing.OcrImportScreen
 import io.github.rakasans.foodapp.ui.importing.OcrMode
 import io.github.rakasans.foodapp.ui.importing.TextImportScreen
 import io.github.rakasans.foodapp.ui.importing.DictationImportScreen
+import io.github.rakasans.foodapp.ui.welcome.WelcomeScreen
+import io.github.rakasans.foodapp.ui.detail.CookingScreen
 import io.github.rakasans.foodapp.domain.isLinkShare
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -88,6 +90,9 @@ private object Routes {
     const val MATERIAL = "material/{id}"
     const val PORTIONS = "portions?ids={ids}"
     const val IMPORT_DICTATION = "import/dictation"
+    const val WELCOME = "welcome"
+    const val COOKING = "cooking/{id}"
+    fun cooking(id: String) = "cooking/$id"
     const val COLLECTION = "collection/{id}"
     fun portions(ids: List<String> = emptyList()) = "portions?ids=${ids.joinToString(",")}"
     fun collection(id: String) = "collection/$id"
@@ -148,12 +153,19 @@ fun FoodAppNavHost(container: AppContainer) {
         Routes.MATERIAL -> "Zapisany materiał"
         Routes.PORTIONS -> "Porcje i lista zakupów"
         Routes.IMPORT_DICTATION -> "Dyktowanie"
+        Routes.WELCOME -> "Witaj w Przepisarni"
+        Routes.COOKING -> "Gotowanie"
         Routes.COLLECTION -> "Kolekcja"
         else -> "Przepis"
     }
 
     // „Udostępnij” z innych aplikacji: kierujemy do właściwego importu; ekran odbiera treść ze skrzynki.
     val shared by container.shareInbox.pending.collectAsState()
+    // Pierwsze uruchomienie: ekran powitalny (chyba że aplikację otwarto przez „Udostępnij”)
+    LaunchedEffect(Unit) {
+        if (!container.prefs.welcomeSeen && container.shareInbox.pending.value == null) nav.navigate(Routes.WELCOME)
+    }
+
     LaunchedEffect(shared) {
         val s = shared ?: return@LaunchedEffect
         val target = when {
@@ -236,6 +248,7 @@ fun FoodAppNavHost(container: AppContainer) {
                     vm, container.photos,
                     onEdit = { nav.navigate(Routes.editor(id)) },
                     onAddToShopping = { nav.navigate(Routes.portions(listOf(id))) },
+                    onCook = { nav.navigate(Routes.cooking(id)) },
                     onCollections = { picker = true },
                 )
                 if (picker) CollectionPickerDialog(container, id, onDismiss = { picker = false })
@@ -343,7 +356,23 @@ fun FoodAppNavHost(container: AppContainer) {
                     }
                 })
             }
-            composable(Routes.ACCOUNT) { AccountScreen(container) }
+            composable(Routes.ACCOUNT) { AccountScreen(container, onAbout = { nav.navigate(Routes.WELCOME) }) }
+            composable(Routes.COOKING, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                val vm: DetailViewModel = viewModel(key = "detail-$id", factory = viewModelFactory {
+                    initializer { DetailViewModel(id, container.recipes) }
+                })
+                CookingScreen(vm)
+            }
+            composable(Routes.WELCOME) {
+                val firstRun = remember { !container.prefs.welcomeSeen }
+                // pokazany raz wystarczy — także gdy ktoś wyjdzie strzałką „wstecz”
+                LaunchedEffect(Unit) { container.prefs.welcomeSeen = true }
+                WelcomeScreen(firstRun = firstRun, onStart = {
+                    container.prefs.welcomeSeen = true
+                    nav.popBackStack()
+                })
+            }
         }
     }
 }
