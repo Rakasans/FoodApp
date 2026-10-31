@@ -42,7 +42,7 @@ import io.github.rakasans.foodapp.ui.common.SectionLabel
 
 /**
  * Ekran powitalny — treść landingu przepisarnia.pl w aplikacji. Pokazywany przy pierwszym uruchomieniu
- * i dostępny w „Konto → O aplikacji”. Docelowo tu trafi też logowanie (konta + Supabase).
+ * i dostępny w „Moje dane → O aplikacji”. Docelowo tu trafi też logowanie (konta + Supabase).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

@@ -72,7 +72,8 @@ class LibraryViewModel(
     val state: StateFlow<LibraryUiState> = combine(
         recipes.observeSummaries(), categories.observeAll(), tags.observeAll(), filters, selected,
     ) { all, cats, tagList, f, sel ->
-        val visible = all.filter { matches(it, f) }
+        // ulubione na górze; w obrębie grup zostaje kolejność z bazy (ostatnio zmienione najpierw)
+        val visible = all.filter { matches(it, f) }.sortedByDescending { it.recipe.favorite }
         LibraryUiState(
             loading = false,
             filters = f,

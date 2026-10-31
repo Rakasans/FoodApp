@@ -104,36 +104,22 @@ fun LibraryScreen(
                         shape = RoundedCornerShape(28.dp),
                     )
                 }
-                if (state.categories.isNotEmpty()) {
+                // Jeden rząd filtrów: ulubione, kategorie, etykiety. Ponowne stuknięcie zaznaczonego filtra go wyłącza.
+                if (!state.libraryEmpty) {
                     item {
-                        Column {
-                            SectionLabel("Kategoria")
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                                item {
-                                    FilterChip(selected = state.filters.categoryId == null, onClick = { viewModel.onCategory(null) }, label = { Text("Wszystkie") })
-                                }
-                                item {
-                                    FilterChip(
-                                        selected = state.filters.favoritesOnly, onClick = viewModel::onFavoritesOnly,
-                                        label = { Text("Ulubione") },
-                                        leadingIcon = { Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                    )
-                                }
-                                items(state.categories, key = { it.id }) { c ->
-                                    FilterChip(selected = state.filters.categoryId == c.id, onClick = { viewModel.onCategory(c.id) }, label = { Text(c.name) })
-                                }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item {
+                                FilterChip(
+                                    selected = state.filters.favoritesOnly, onClick = viewModel::onFavoritesOnly,
+                                    label = { Text("Ulubione") },
+                                    leadingIcon = { Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                )
                             }
-                        }
-                    }
-                }
-                if (state.tags.isNotEmpty()) {
-                    item {
-                        Column {
-                            SectionLabel("Etykieta")
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                                items(state.tags, key = { it.id }) { t ->
-                                    FilterChip(selected = state.filters.tagId == t.id, onClick = { viewModel.onTag(t.id) }, label = { Text("#${t.name}") })
-                                }
+                            items(state.categories, key = { "c" + it.id }) { c ->
+                                FilterChip(selected = state.filters.categoryId == c.id, onClick = { viewModel.onCategory(c.id) }, label = { Text(c.name) })
+                            }
+                            items(state.tags, key = { "t" + it.id }) { t ->
+                                FilterChip(selected = state.filters.tagId == t.id, onClick = { viewModel.onTag(t.id) }, label = { Text("#${t.name}") })
                             }
                         }
                     }
@@ -147,27 +133,26 @@ fun LibraryScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    !state.selectionMode && state.items.isNotEmpty() -> item {
-                        Text(
-                            "Przytrzymaj przepis, aby go zaznaczyć i usunąć.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
+                }
+                // Nagłówki grup tylko wtedy, gdy są obie grupy (same ulubione albo brak ulubionych = bez nagłówków).
+                val favCount = state.items.count { it.favorite }
+                val showGroups = favCount in 1 until state.items.size
+                state.items.forEachIndexed { index, card ->
+                    if (showGroups && index == 0) item(key = "h-fav") { SectionLabel("Ulubione") }
+                    if (showGroups && index == favCount) item(key = "h-rest") { SectionLabel("Pozostałe") }
+                    item(key = card.id) {
+                        RecipeCard(
+                            photos = photos,
+                            selectionMode = state.selectionMode,
+                            onFavorite = { viewModel.toggleFavorite(card) },
+                            card = card,
+                            selected = card.id in state.selected,
+                            onClick = {
+                                if (state.selectionMode) viewModel.toggleSelection(card.id) else onOpenRecipe(card.id, card.target)
+                            },
+                            onLongClick = { viewModel.toggleSelection(card.id) },
                         )
                     }
-                }
-                items(state.items, key = { it.id }) { card ->
-                    val isSelected = card.id in state.selected
-                    RecipeCard(
-                        photos = photos,
-                        selectionMode = state.selectionMode,
-                        onFavorite = { viewModel.toggleFavorite(card) },
-                        card = card,
-                        selected = isSelected,
-                        onClick = {
-                            if (state.selectionMode) viewModel.toggleSelection(card.id) else onOpenRecipe(card.id, card.target)
-                        },
-                        onLongClick = { viewModel.toggleSelection(card.id) },
-                    )
                 }
             }
         }
@@ -275,7 +260,6 @@ private fun RecipeCard(
                     }
                 }
                 Text(card.meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(card.updatedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (card.tags.isNotEmpty()) {
                     Text(card.tags.joinToString("  ") { "#$it" }, style = MaterialTheme.typography.bodySmall)
                 }

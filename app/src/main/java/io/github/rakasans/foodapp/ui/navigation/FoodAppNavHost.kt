@@ -123,7 +123,7 @@ private val topLevel = listOf(
     TopLevel(Routes.COLLECTIONS, "Kolekcje", Icons.AutoMirrored.Filled.List, "Kolekcje"),
     TopLevel(Routes.ADD, "Dodaj", Icons.Default.Add, "Dodaj przepis"),
     TopLevel(Routes.SHOPPING, "Zakupy", Icons.Default.ShoppingCart, "Lista zakupów"),
-    TopLevel(Routes.ACCOUNT, "Konto", Icons.Default.Person, "Konto"),
+    TopLevel(Routes.ACCOUNT, "Moje dane", Icons.Default.Person, "Moje dane"),
 )
 
 /** Po zatwierdzeniu: szczegóły przepisu, a pod spodem biblioteka (bez edytora na stosie). */
@@ -261,7 +261,6 @@ fun FoodAppNavHost(container: AppContainer) {
                 AddScreen(
                     onManual = { nav.navigate(Routes.EDITOR_NEW) },
                     onLink = { nav.navigate(Routes.importLink()) },
-                    onScreenshot = { nav.navigate(Routes.importOcr(OcrMode.SCREENSHOT)) },
                     onText = { nav.navigate(Routes.importText()) },
                     onPhoto = { nav.navigate(Routes.importOcr(OcrMode.PHOTO)) },
                     onDictation = { nav.navigate(Routes.IMPORT_DICTATION) },

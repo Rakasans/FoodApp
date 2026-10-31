@@ -29,6 +29,9 @@ class SupabaseClient(context: Context, private val baseUrl: String, private val 
     val userId: String? get() = prefs.getString("user_id", null)
     val isAnonymous: Boolean get() = prefs.getBoolean("anonymous", true)
 
+    /** Metody logowania podpięte do konta w chmurze (np. "google", "email"); puste dla konta anonimowego. */
+    val providers: List<String> get() = prefs.getString("providers", null)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+
     private fun stored(): Session? {
         val access = prefs.getString("access", null) ?: return null
         return Session(
@@ -49,8 +52,14 @@ class SupabaseClient(context: Context, private val baseUrl: String, private val 
         prefs.edit()
             .putString("access", s.accessToken).putString("refresh", s.refreshToken).putLong("expires_at", s.expiresAt)
             .putString("user_id", s.userId).putBoolean("anonymous", s.anonymous)
+            .putString("providers", providersOf(user).joinToString(","))
             .apply()
         return s
+    }
+
+    private fun providersOf(user: JSONObject): List<String> {
+        val list = user.optJSONObject("app_metadata")?.optJSONArray("providers") ?: return emptyList()
+        return (0 until list.length()).map { list.getString(it) }.filter { it != "anonymous" }
     }
 
     /** Ważna sesja: odświeżona w razie potrzeby; bez sesji — anonimowe konto (do podpięcia Google później). */

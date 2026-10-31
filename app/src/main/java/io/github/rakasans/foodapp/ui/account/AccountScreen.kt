@@ -1,5 +1,17 @@
 package io.github.rakasans.foodapp.ui.account
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.Color
+import io.github.rakasans.foodapp.ui.common.SectionLabel
 import io.github.rakasans.foodapp.domain.formatUpdated
 import io.github.rakasans.foodapp.data.sync.SyncStatus
 import androidx.compose.foundation.layout.Row
@@ -40,55 +52,47 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 
+/**
+ * „Moje dane”: logowanie, synchronizacja, kopia zapasowa, informacje o aplikacji.
+ * Zasada: etykiety bez opisów — znaczenie niesie sama etykieta i jej wartość.
+ */
 @Composable
 fun AccountScreen(container: AppContainer, onAbout: () -> Unit) {
-    val user by container.auth.currentUser.collectAsState()
     val scope = rememberCoroutineScope()
     var duplicates by remember { mutableStateOf<List<String>?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(Modifier.padding(14.dp)) {
-                Text(user.displayName, fontWeight = FontWeight.Bold)
-                Text(
-                    if (user.isDummy) "Konto testowe (atrapa)" else "Konto",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        NoticeCard(BadgeKind.INFO) {
-            Text("Logowanie jest atrapą.", fontWeight = FontWeight.Bold)
-            Text("Wszystkie dane zapisują się tylko na tym urządzeniu. Prawdziwe logowanie i synchronizacja — późniejszy etap.")
+        SettingsGroup("Konto") {
+            SettingRow("Logowanie", value = signInLabel(container))
         }
         CloudSection(container)
         BackupSection(container)
-        OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) { Text("O aplikacji Przepisarnia") }
-        Text("Język aplikacji: polski", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SettingsGroup("Aplikacja") {
+            SettingRow("O aplikacji", onClick = onAbout, trailing = {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            })
+            SettingRow("Język", value = "polski")
+        }
 
         if (BuildConfig.DEBUG) {
-            Text("Narzędzia testowe (tylko wersja debug)", style = MaterialTheme.typography.labelMedium)
-            OutlinedButton(onClick = {
-                scope.launch {
-                    val dups = container.recipes.demoDuplicates()
-                    if (dups.isEmpty()) {
-                        val added = container.recipes.insertDemoData(skipExisting = false)
-                        message = "Dodano ${recipesCount(added)}."
-                    } else {
-                        duplicates = dups
+            SettingsGroup("Dla dewelopera") {
+                SettingRow("Wczytaj przepisy demonstracyjne", onClick = {
+                    scope.launch {
+                        val dups = container.recipes.demoDuplicates()
+                        if (dups.isEmpty()) {
+                            val added = container.recipes.insertDemoData(skipExisting = false)
+                            message = "Dodano ${recipesCount(added)}."
+                        } else {
+                            duplicates = dups
+                        }
                     }
-                }
-            }) {
-                Text("Wczytaj przepisy demonstracyjne")
+                })
+                message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             }
-            message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 
@@ -169,71 +173,124 @@ private fun BackupSection(container: AppContainer) {
         }
     }
 
-    NoticeCard(BadgeKind.INFO) {
-        Text("Kopia zapasowa", fontWeight = FontWeight.Bold)
-        Text("Dane są tylko na tym telefonie. Zapisz kopię (przepisy, oryginały i zdjęcia) do pliku — np. na Dysku Google. Przywrócenie dodaje brakujące przepisy, niczego nie nadpisuje.")
+    SettingsGroup("Kopia zapasowa") {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                enabled = !working,
+                onClick = { exportLauncher.launch("Przepisarnia-kopia-${java.time.LocalDate.now()}.zip") },
+                modifier = Modifier.weight(1f),
+            ) { Text("Zapisz do pliku") }
+            OutlinedButton(
+                enabled = !working,
+                onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Przywróć") }
+        }
+        val info = if (working) "Pracuję…" else status
+        info?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+        }
     }
-    OutlinedButton(
-        enabled = !working,
-        onClick = { exportLauncher.launch("Przepisarnia-kopia-${java.time.LocalDate.now()}.zip") },
-        modifier = Modifier.fillMaxWidth(),
-    ) { Text("Zapisz kopię do pliku") }
-    OutlinedButton(
-        enabled = !working,
-        onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
-        modifier = Modifier.fillMaxWidth(),
-    ) { Text("Przywróć z kopii") }
-    if (working) Text("Pracuję…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    status?.let { Text(it) }
 }
 
-/** Chmura (Supabase): stan synchronizacji, ręczne uruchomienie, wyłączenie. */
+/** Chmura (Supabase): włącznik, ostatnia synchronizacja i mała ikona „synchronizuj teraz”. */
 @Composable
 private fun CloudSection(container: AppContainer) {
     val status by container.sync.status.collectAsState()
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(container.sync.enabled) }
-    val anonymous = container.supabase.userId != null && container.supabase.isAnonymous
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Kopia w chmurze", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Switch(checked = enabled, onCheckedChange = {
-                    enabled = it
-                    container.sync.enabled = it
-                    if (it) scope.launch { container.sync.sync() }
-                })
-            }
-            Text(
-                when (val s = status) {
-                    SyncStatus.Disabled -> "Wyłączona — przepisy są tylko na tym telefonie."
-                    SyncStatus.Never -> "Jeszcze nie synchronizowano."
-                    SyncStatus.Running -> "Synchronizuję…"
-                    SyncStatus.WaitingForNetwork -> "Czeka na internet."
-                    is SyncStatus.Done -> "Zsynchronizowano: " + formatUpdated(s.at, System.currentTimeMillis()) +
-                        if (s.pushed + s.pulled > 0) " (wysłano ${s.pushed}, pobrano ${s.pulled})" else ""
-                    is SyncStatus.Failed -> "Nie udało się: ${s.message}"
+    SettingsGroup("Synchronizacja") {
+        SettingRow("Kopia w chmurze", trailing = {
+            Switch(checked = enabled, onCheckedChange = {
+                enabled = it
+                container.sync.enabled = it
+                if (it) scope.launch { container.sync.sync() }
+            })
+        })
+        if (enabled) {
+            val failed = status is SyncStatus.Failed
+            SettingRow(
+                label = "Ostatnia",
+                value = when (val s = status) {
+                    SyncStatus.Disabled -> "wyłączona"
+                    SyncStatus.Never -> "jeszcze nie"
+                    SyncStatus.Running -> "trwa…"
+                    SyncStatus.WaitingForNetwork -> "czeka na internet"
+                    is SyncStatus.Done -> formatUpdated(s.at, System.currentTimeMillis())
+                    is SyncStatus.Failed -> "błąd"
                 },
-                color = if (status is SyncStatus.Failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                valueColor = if (failed) MaterialTheme.colorScheme.error else null,
+                trailing = {
+                    if (status is SyncStatus.Running) {
+                        CircularProgressIndicator(Modifier.size(24.dp).padding(2.dp), strokeWidth = 2.dp)
+                    } else {
+                        IconButton(onClick = { scope.launch { container.sync.sync() } }) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Synchronizuj teraz")
+                        }
+                    }
+                },
             )
-            if (enabled && anonymous) {
-                Text(
-                    "Konto w chmurze jest na razie anonimowe — działa tylko na tym telefonie. Po podpięciu logowania Google przepisy zostaną na Twoim koncie.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (enabled) {
-                OutlinedButton(
-                    enabled = status !is SyncStatus.Running,
-                    onClick = { scope.launch { container.sync.sync() } },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Synchronizuj teraz") }
+            (status as? SyncStatus.Failed)?.let {
+                Text(it.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, maxLines = 2,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
             }
         }
+    }
+}
+
+/** Sposób logowania, np. „Google, E-mail”; bez konta — gdzie są dane. */
+private fun signInLabel(container: AppContainer): String {
+    val cloud = container.supabase
+    if (cloud.userId == null) return "brak — dane na telefonie"
+    val names = cloud.providers.map {
+        when (it) {
+            "google" -> "Google"
+            "facebook" -> "Facebook"
+            "email" -> "E-mail"
+            else -> it.replaceFirstChar(Char::uppercase)
+        }
+    }
+    return if (cloud.isAnonymous || names.isEmpty()) "anonimowe — tylko ten telefon" else names.joinToString(", ")
+}
+
+/** Grupa ustawień: mały nagłówek + karta z wierszami. */
+@Composable
+private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SectionLabel(title)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) { Column(content = content) }
+    }
+}
+
+/** Wiersz: etykieta po lewej, wartość lub kontrolka po prawej. */
+@Composable
+private fun SettingRow(
+    label: String,
+    value: String? = null,
+    valueColor: Color? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        value?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = valueColor ?: MaterialTheme.colorScheme.onSurfaceVariant) }
+        trailing?.invoke()
     }
 }

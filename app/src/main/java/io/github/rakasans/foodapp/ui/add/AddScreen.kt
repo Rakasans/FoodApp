@@ -6,65 +6,70 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import io.github.rakasans.foodapp.ui.common.Badge
-import io.github.rakasans.foodapp.ui.common.BadgeKind
-import io.github.rakasans.foodapp.ui.common.BadgeUi
+import io.github.rakasans.foodapp.ui.common.ActionTile
+import io.github.rakasans.foodapp.ui.common.ActionTileGrid
+import io.github.rakasans.foodapp.ui.common.HelpButton
+import io.github.rakasans.foodapp.ui.common.HelpSheet
+import io.github.rakasans.foodapp.ui.common.TileAction
 
-private data class Method(val title: String, val description: String, val note: String?, val onClick: (() -> Unit)?)
-
+/**
+ * Wybór sposobu dodania przepisu: same etykiety z ikonami.
+ * Opisy — po przytrzymaniu kafelka i w panelu „Jak dodawać przepisy?”.
+ */
 @Composable
 fun AddScreen(
     onManual: () -> Unit,
     onLink: () -> Unit,
-    onScreenshot: () -> Unit,
     onText: () -> Unit,
     onPhoto: () -> Unit,
     onDictation: () -> Unit,
 ) {
-    val methods = listOf(
-        Method("Link do rolki lub strony", "Rolkę z Instagrama zapiszesz z notatką „od kogo”; przepis ze zrzutu opisu.", null, onLink),
-        Method("Zrzut ekranu opisu z Instagrama", "Przepis rozpoznany na telefonie, także offline.", null, onScreenshot),
-        Method("Wklej tekst", "Tekst zamieniony w szkic; oryginał zostaje przy przepisie.", null, onText),
-        Method("Zdjęcie przepisu", "Np. strona z czasopisma — aparat albo galeria.", null, onPhoto),
-        Method("Wpisz ręcznie", "Pusty formularz przepisu.", null, onManual),
-        Method("Dyktowanie", "Podyktuj przepis, popraw transkrypcję, utwórz szkic.", null, onDictation),
+    var showHelp by rememberSaveable { mutableStateOf(false) }
+
+    // Kolejność = częstość użycia. „Wpisz ręcznie” to wyjście awaryjne, więc osobno i skromniej.
+    val main = listOf(
+        TileAction("Wklej link", Icons.Outlined.Link,
+            "Rolka z Instagrama albo strona z przepisem. Rolkę zapiszesz od razu, także bez internetu.", onLink),
+        TileAction("Dodaj ze zdjęcia", Icons.Outlined.PhotoCamera,
+            "Zdjęcie strony z książki lub czasopisma albo zrzut ekranu. Tekst rozpoznajemy na telefonie.", onPhoto),
+        TileAction("Wklej tekst", Icons.Outlined.ContentPaste,
+            "Skopiowany przepis z wiadomości, notatki lub maila.", onText),
+        TileAction("Podyktuj", Icons.Outlined.Mic,
+            "Powiedz przepis na głos, popraw transkrypcję.", onDictation),
     )
+    val manual = TileAction("Wpisz ręcznie", Icons.Outlined.EditNote, "Pusty formularz przepisu.", onManual)
+
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Każdy przepis trafia najpierw do szkicu, który przejrzysz przed zatwierdzeniem. W innych aplikacjach możesz też wybrać „Udostępnij → Zapisz w Przepisarni”.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        methods.forEach { MethodCard(it) }
+        HelpButton("Jak dodawać przepisy?", onClick = { showHelp = true }, modifier = Modifier.align(Alignment.End))
+        ActionTileGrid(main)
+        ActionTile(manual, Modifier.fillMaxWidth(), compact = true)
     }
-}
 
-@Composable
-private fun MethodCard(method: Method) {
-    val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    val content: @Composable () -> Unit = {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(method.title, style = MaterialTheme.typography.titleMedium)
-            Text(method.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            method.note?.let { Badge(BadgeUi(it, BadgeKind.NEUTRAL)) }
-        }
-    }
-    val click = method.onClick
-    if (click != null) {
-        Card(onClick = click, shape = RoundedCornerShape(16.dp), colors = colors, modifier = Modifier.fillMaxWidth()) { content() }
-    } else {
-        Card(shape = RoundedCornerShape(16.dp), colors = colors, modifier = Modifier.fillMaxWidth()) { content() }
+    if (showHelp) {
+        HelpSheet(
+            title = "Jak dodawać przepisy",
+            actions = main + manual,
+            onDismiss = { showHelp = false },
+            footer = "Najszybciej: w Instagramie lub przeglądarce wybierz „Udostępnij → Zapisz w Przepisarni”. " +
+                "Każdy przepis trafia najpierw do szkicu, który przejrzysz przed zatwierdzeniem.",
+        )
     }
 }

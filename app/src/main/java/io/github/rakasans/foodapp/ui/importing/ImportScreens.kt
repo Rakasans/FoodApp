@@ -337,7 +337,7 @@ fun OcrImportScreen(
                 Text(
                     if (mode == OcrMode.SCREENSHOT)
                         "Zrób w Instagramie zrzut ekranu z opisem rolki i wybierz go tutaj. Możesz też udostępnić zrzut prosto do Przepisarni."
-                    else "Zrób zdjęcie strony z przepisem albo wybierz je z galerii.",
+                    else "Zrób zdjęcie strony z przepisem albo wybierz z galerii zdjęcie lub zrzut ekranu.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (mode == OcrMode.PHOTO) {
