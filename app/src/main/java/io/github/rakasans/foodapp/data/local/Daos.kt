@@ -119,6 +119,13 @@ interface RecipeDao {
     @Query("UPDATE recipe SET deletedAt = :now, updatedAt = :now WHERE id IN (:ids)")
     suspend fun softDelete(ids: List<String>, now: Long)
 
+    /** Przepisy usunięte dawniej niż [before] — do ostatecznego skasowania (składniki itd. kasują się kaskadowo). */
+    @Query("SELECT * FROM recipe WHERE deletedAt IS NOT NULL AND deletedAt < :before")
+    suspend fun deletedBefore(before: Long): List<RecipeEntity>
+
+    @Query("DELETE FROM recipe WHERE id IN (:ids)")
+    suspend fun hardDelete(ids: List<String>)
+
     @Query("UPDATE recipe SET deletedAt = NULL, updatedAt = :now WHERE id IN (:ids)")
     suspend fun restore(ids: List<String>, now: Long)
 }

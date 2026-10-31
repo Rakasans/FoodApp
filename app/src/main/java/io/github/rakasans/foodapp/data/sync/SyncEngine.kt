@@ -100,6 +100,7 @@ class SyncEngine(
                 pushed += pushSimple("collection", db.collectionDao().all(), { it.id }, ::collectionHash, ::collectionJson)
                 pushed += pushRecipes(uid)
 
+                purgeDeleted()
                 val now = System.currentTimeMillis()
                 prefs.edit().putLong("last_ok", now).apply()
                 _status.value = SyncStatus.Done(now, pushed, pulled)
@@ -177,6 +178,8 @@ class SyncEngine(
             val id = j.getString("id")
             val local = db.recipeDao().getRecipe(id)
             val meta = db.syncDao().get("recipe", id)
+            // znacznik usunięcia przepisu, którego nie mamy — nic do zrobienia
+            if (local == null && !j.isNull("deleted_at")) continue
             val localHash = local?.let { recipeHash(it) }
             val action = SyncRules.decide(localHash, meta?.baseHash, j.getString("server_updated_at"), meta?.baseServerAt, local?.updatedAt, j.optLong("updated_at"))
             when (action) {
@@ -208,6 +211,13 @@ class SyncEngine(
                     runCatching { client.download(photoPath, file) }
                         .onSuccess { localPhoto = file.absolutePath }
                         .onFailure { Log.w(TAG, "photo download failed $photoPath", it) }
+                }
+                if (!j.isNull("deleted_at") && local != null) {
+                    // usunięty na innym urządzeniu: oznaczamy jako usunięty, treść zostaje do skasowania po dobie
+                    db.recipeDao().upsertRecipe(local.copy(deletedAt = j.optLong("deleted_at"), updatedAt = j.optLong("updated_at")))
+                    val applied = db.recipeDao().getRecipe(id)!!
+                    db.syncDao().upsert(SyncMetaEntity("recipe", id, recipeHash(applied), j.getString("server_updated_at")))
+                    continue
                 }
                 val recipe = recipeFrom(j, local, localPhoto)
                 val existingCats = db.categoryDao().all().map { it.id }.toSet()
@@ -258,6 +268,21 @@ class SyncEngine(
             val h = recipeHash(r)
             if (db.syncDao().get("recipe", r.id)?.baseHash == h) continue
 
+            // Usunięty przepis: w chmurze zostaje tylko pusty znacznik usunięcia (bez treści i zdjęcia),
+            // żeby inne urządzenia też go usunęły. Treść zostaje na telefonie przez dobę (na wypadek „Cofnij”).
+            if (r.deletedAt != null) {
+                val rid = SupabaseClient.enc(r.id)
+                for (t in listOf("ingredient", "step", "nutrition_value", "recipe_category", "recipe_tag", "recipe_collection")) {
+                    client.delete(t, "recipe_id=eq.$rid")
+                }
+                db.syncDao().get("photo", r.id)?.baseServerAt?.let { old -> runCatching { client.deletePhoto(old) } }
+                val saved = client.upsert("recipe", JSONArray().put(tombstoneJson(r))).objects().firstOrNull()
+                db.syncDao().upsert(SyncMetaEntity("recipe", r.id, h, saved?.optStringOrNull("server_updated_at")))
+                db.syncDao().upsert(SyncMetaEntity("photo", r.id, "", null))
+                n++
+                continue
+            }
+
             // zdjęcie: wysyłamy, gdy na telefonie jest inne niż ostatnio wysłane
             val photoMeta = db.syncDao().get("photo", r.id)
             var photoPath: String? = null
@@ -268,6 +293,8 @@ class SyncEngine(
                     val path = "$uid/${r.id}-${Ids.new().take(8)}.jpg"
                     client.upload(path, photoFile)
                     photoPath = path
+                    // poprzednia wersja zdjęcia nie jest już potrzebna
+                    photoMeta?.baseServerAt?.takeIf { it != path }?.let { old -> runCatching { client.deletePhoto(old) } }
                     db.syncDao().upsert(SyncMetaEntity("photo", r.id, r.photoUri!!, path))
                 }
             }
@@ -294,10 +321,23 @@ class SyncEngine(
         return n
     }
 
+    /**
+     * Ostateczne skasowanie na telefonie przepisów usuniętych ponad dobę temu, których usunięcie już jest w chmurze
+     * (albo synchronizacja jest wyłączona). Kasujemy też pliki zdjęć.
+     */
+    suspend fun purgeDeleted(olderThanMs: Long = 24 * 60 * 60 * 1000L) {
+        val old = db.recipeDao().deletedBefore(System.currentTimeMillis() - olderThanMs)
+        val ready = old.filter { r -> !enabled || db.syncDao().get("recipe", r.id)?.baseHash == recipeHash(r) }
+        if (ready.isEmpty()) return
+        ready.forEach { r -> photos.delete(r.photoUri); photos.delete(r.materialUri) }
+        db.recipeDao().hardDelete(ready.map { it.id })
+    }
+
     // ================================================================ skróty treści
 
     private suspend fun recipeHash(r: RecipeEntity): String {
         val dao = db.recipeDao()
+        if (r.deletedAt != null) return SyncRules.hash(listOf("deleted-v2", r.deletedAt, r.updatedAt))
         return SyncRules.hash(
             listOf(
                 r.status, r.processing, r.name, r.servings, r.yieldText, r.prepTime, r.cookTime, r.notes, r.photoUri,
@@ -361,6 +401,16 @@ class SyncEngine(
         deletedAt = if (j.isNull("deleted_at")) null else j.optLong("deleted_at"),
         syncState = SyncState.SYNCED,
         favorite = j.optBoolean("favorite", false),
+    )
+
+    /** Znacznik usunięcia: tylko to, co potrzebne do usunięcia przepisu na innych urządzeniach. */
+    private fun tombstoneJson(r: RecipeEntity) = recipeJson(
+        r.copy(
+            name = "", servings = null, yieldText = null, prepTime = null, cookTime = null, notes = null,
+            sourceUrl = null, sourceAuthor = null, materialText = null, materialNote = null,
+            nutritionBasis = null, allergensText = null, favorite = false,
+        ),
+        photoPath = null,
     )
 
     private fun ingredientJson(i: IngredientEntity) = JSONObject()

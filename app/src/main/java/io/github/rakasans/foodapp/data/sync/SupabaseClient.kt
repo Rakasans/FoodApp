@@ -98,6 +98,10 @@ class SupabaseClient(context: Context, private val baseUrl: String, private val 
         Unit
     }
 
+    suspend fun deletePhoto(path: String) {
+        request("DELETE", "/storage/v1/object/photos/$path", null, null)
+    }
+
     suspend fun download(path: String, target: File) = withContext(Dispatchers.IO) {
         val bytes = request("GET", "/storage/v1/object/authenticated/photos/$path", null, null, binary = true)
         target.writeBytes(bytes)

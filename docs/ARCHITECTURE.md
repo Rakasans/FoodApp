@@ -221,3 +221,12 @@ stare pliki zdjęć nie są jeszcze sprzątane po podmianie.
   W „Koncie” można synchronizację wyłączyć.
 - Jeszcze nie: lista zakupów, logowanie Google (podpięcie do konta anonimowego), scalanie domyślnych kategorii
   między urządzeniami (każda instalacja tworzy własne „Obiad”, „Deser”… — przy drugim telefonie będą podwójne).
+
+### Usuwanie a chmura (31.10)
+
+- Przepis usunięty na telefonie trafia do chmury jako **pusty znacznik usunięcia** (id, deleted_at, bez treści,
+  składników i zdjęcia) — żeby inne urządzenia też go usunęły. Zdjęcie w Storage jest kasowane.
+- Na telefonie treść zostaje przez dobę (cofnięcie usunięcia przywraca całość i wysyła ją ponownie), potem przepis
+  jest kasowany ostatecznie (`SyncEngine.purgeDeleted`), razem z plikami zdjęć.
+- Znacznik usunięcia z chmury dla przepisu, którego telefon nie ma — pomijany.
+- Przy zmianie zdjęcia poprzednia wersja w Storage jest usuwana.
