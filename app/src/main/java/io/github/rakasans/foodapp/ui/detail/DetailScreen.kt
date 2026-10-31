@@ -1,5 +1,6 @@
 package io.github.rakasans.foodapp.ui.detail
 
+import io.github.rakasans.foodapp.ui.common.StepText
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Button
 import kotlinx.coroutines.launch
@@ -165,7 +166,7 @@ fun DetailScreen(
         steps.forEachIndexed { index, s ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("${index + 1}.", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text(s.text, modifier = Modifier.weight(1f))
+                StepText(s.text, details.ingredients, MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             }
         }
 

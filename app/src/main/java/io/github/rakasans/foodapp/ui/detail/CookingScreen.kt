@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.rakasans.foodapp.ui.common.StepText
 
 /**
  * Tryb gotowania: duże litery, ekran się nie wygasza, odhaczanie składników i kroków.
@@ -149,8 +150,10 @@ fun CookingScreen(viewModel: DetailViewModel) {
                                     }
                                 }
                             }
-                            Text(
-                                step.text, fontSize = 24.sp, lineHeight = 34.sp,
+                            // nazwy składników w kroku są klikalne — pokazują ilość z listy składników
+                            StepText(
+                                text = step.text, ingredients = ingredients,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 24.sp, lineHeight = 34.sp),
                                 color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                                 textDecoration = if (done) TextDecoration.LineThrough else null,
                             )
